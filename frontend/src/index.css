@@ -1,1 +1,69 @@
 @import "tailwindcss";
+
+:root {
+  --accent: #22d3ee;
+}
+
+body {
+  background:
+    radial-gradient(900px 520px at 12% -10%, rgba(34, 211, 238, 0.13), transparent 60%),
+    radial-gradient(760px 520px at 92% 112%, rgba(34, 211, 238, 0.07), transparent 60%),
+    #06090d;
+  background-attachment: fixed;
+  color: #e4e4e7;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.35);
+}
+
+/* Glassmorphism surface: translucent, blurred, thin bright edge. */
+.glass {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4);
+}
+
+/* Slim scrollbars with a cyan hint */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.45);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Live markdown (HyperMD + CodeMirror 5): transparent glass + cyan accent.
+   The doubled class wins over the shipped stylesheets. */
+.md-hypermd.md-hypermd .CodeMirror {
+  height: auto;
+  min-height: 18rem;
+  background-color: transparent;
+  color: #d4d4d8;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  padding: 0 4px;
+}
+.md-hypermd.md-hypermd .CodeMirror-cursor {
+  border-left-color: #22d3ee;
+}
+.md-hypermd.md-hypermd .CodeMirror-selected,
+.md-hypermd.md-hypermd .CodeMirror-focused .CodeMirror-selected {
+  background: rgba(34, 211, 238, 0.18);
+}
+.md-hypermd.md-hypermd .CodeMirror-gutters {
+  background-color: transparent;
+  border-right: none;
+}

@@ -1,0 +1,54 @@
+// The only place that talks to the backend. Address: VITE_API_URL (or localhost:5000).
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+async function request(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+export const api = {
+  listFolders: () => request("/api/folders"),
+  createFolder: (name, parentId) =>
+    request("/api/folders", {
+      method: "POST",
+      body: JSON.stringify({ name, parentId: parentId || null }),
+    }),
+  deleteFolder: (id) => request(`/api/folders/${id}`, { method: "DELETE" }),
+
+  listNotes: () => request("/api/notes"),
+  getNote: (id) => request(`/api/notes/${id}`),
+  createNote: (payload) =>
+    request("/api/notes", { method: "POST", body: JSON.stringify(payload) }),
+  updateNote: (id, payload) =>
+    request(`/api/notes/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteNote: (id) => request(`/api/notes/${id}`, { method: "DELETE" }),
+
+  organize: (noteId) =>
+    request("/api/ai/organize", { method: "POST", body: JSON.stringify({ noteId }) }),
+
+  chat: (message) =>
+    request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message }) }),
+  chatHistory: () => request("/api/ai/chat"),
+  clearChat: () => request("/api/ai/chat", { method: "DELETE" }),
+
+  insights: (refresh = false) => request(`/api/ai/insights${refresh ? "?refresh=1" : ""}`),
+
+  // Uploads a file; with noteId it is appended to that note's attachments.
+  upload: async (file, noteId) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (noteId) form.append("noteId", noteId);
+    const res = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Upload failed");
+    return data;
+  },
+};
+
+// Turns a backend "/uploads/..." path into a full URL.
+export const fileUrl = (path) => `${API_BASE}${path}`;

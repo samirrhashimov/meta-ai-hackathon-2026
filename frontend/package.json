@@ -11,8 +11,11 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "codemirror": "^5.65.21",
+    "hypermd": "^0.3.11",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-icons": "^5.7.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
