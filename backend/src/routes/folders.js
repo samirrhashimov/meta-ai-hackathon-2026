@@ -67,6 +67,13 @@ router.put("/:id", async (req, res, next) => {
           return res.status(400).json({ error: "A folder cannot be moved under itself" });
         const parent = await Folder.findById(parentId);
         if (!parent) return res.status(404).json({ error: "Parent folder not found" });
+        // Cycle guard: the new parent must not be a descendant of the moved folder.
+        let cur = parent;
+        while (cur) {
+          if (String(cur._id) === req.params.id)
+            return res.status(400).json({ error: "A folder cannot be moved into its own subfolder" });
+          cur = cur.parentId ? await Folder.findById(cur.parentId).select("parentId") : null;
+        }
       }
       updates.parentId = parentId;
     }

@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { LuPanelRightClose, LuSend, LuX } from "react-icons/lu";
+import { LuPanelRightClose, LuSend, LuSparkles } from "react-icons/lu";
+
+const HINTS = [
+  "Create a Sports folder and move my gym note into it.",
+  "Find all my notes about travel.",
+  "Summarize my meeting notes from this week.",
+  "File my unfiled notes into folders.",
+  "What did I write about books?",
+];
 
 // Right panel: the Assistant chat.
 export default function AiPanel({ onChanged, onCollapse }) {
@@ -32,7 +40,39 @@ function Chat({ onChanged }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [hintIdx, setHintIdx] = useState(0);
+  const [hintVisible, setHintVisible] = useState(true);
   const bottomRef = useRef(null);
+  const taRef = useRef(null);
+
+  // Auto-grow the input as the message gets longer. The scrollbar stays
+  // hidden until the box hits its max height (also kills the phantom
+  // 1px scrollbar from subpixel rounding on an empty box).
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.overflowY = "hidden";
+    if (el.scrollHeight > 160) {
+      el.style.height = "160px";
+      el.style.overflowY = "auto";
+    } else {
+      el.style.height = el.scrollHeight + "px";
+    }
+  }, [input]);
+
+  // Rotate example prompts while the chat is empty.
+  useEffect(() => {
+    if (messages.length > 0) return;
+    const t = setInterval(() => {
+      setHintVisible(false);
+      setTimeout(() => {
+        setHintIdx((i) => (i + 1) % HINTS.length);
+        setHintVisible(true);
+      }, 300);
+    }, 4000);
+    return () => clearInterval(t);
+  }, [messages.length]);
 
   // Wipe history on page load only; remounts (e.g. switching notes) keep it.
   useEffect(() => {
@@ -68,58 +108,86 @@ function Chat({ onChanged }) {
     }
   }
 
-  async function clear() {
-    await api.clearChat().catch(() => {});
-    setMessages([]);
-  }
-
   return (
     <div className="flex h-full w-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 && !sending && (
-          <p className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-neutral-500">
-            Ask me to find, create, move, or organize your notes. For example: "Create a Sports
-            folder and move my gym note into it."
-          </p>
-        )}
-        {messages.map((m) => (
-          <div
-            key={m._id}
-            className={`mb-2 rounded-lg px-3 py-2 text-sm ${
-              m.role === "user"
-                ? "ml-8 border border-cyan-300/25 bg-cyan-400/15 text-cyan-50"
-                : "mr-8 border border-white/[0.07] bg-white/[0.04] text-neutral-300"
-            }`}
-          >
-            <p className="whitespace-pre-wrap">{m.content}</p>
+          <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+            <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-400/10 text-cyan-300">
+              <LuSparkles size={19} />
+            </span>
+            <p className="text-sm font-medium text-neutral-300">
+              Ask me to find, create, move, or organize your notes
+            </p>
+            <button
+              onClick={() => setInput(HINTS[hintIdx])}
+              title="Click to try it"
+              className={`mt-2 max-w-full text-sm text-neutral-500 transition-all duration-300 hover:text-cyan-200 ${
+                hintVisible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+              }`}
+            >
+              “{HINTS[hintIdx]}”
+            </button>
           </div>
-        ))}
-        {sending && <p className="text-sm text-neutral-500">Thinking...</p>}
+        )}
+        {messages.map((m) =>
+          m.role === "user" ? (
+            <div key={m._id} className="mb-2.5 flex justify-end">
+              <div className="max-w-[85%] min-w-0 rounded-2xl rounded-br-md border border-cyan-300/25 bg-cyan-400/15 px-3.5 py-2 text-sm leading-relaxed text-cyan-50">
+                <p className="whitespace-pre-wrap break-words">{m.content}</p>
+              </div>
+            </div>
+          ) : (
+            <div key={m._id} className="mb-2.5 flex items-start gap-2">
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 text-cyan-300">
+                <LuSparkles size={12} />
+              </span>
+              <div className="max-w-[85%] min-w-0 rounded-2xl rounded-bl-md border border-white/[0.07] bg-white/[0.04] px-3.5 py-2 text-sm leading-relaxed text-neutral-300">
+                <p className="whitespace-pre-wrap break-words">{m.content}</p>
+              </div>
+            </div>
+          )
+        )}
+        {sending && (
+          <div className="mb-2 flex items-center gap-1.5 px-1 py-1">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 text-cyan-300">
+              <LuSparkles size={12} />
+            </span>
+            <span className="flex gap-1">
+              {[0, 150, 300].map((d) => (
+                <span
+                  key={d}
+                  style={{ animationDelay: `${d}ms` }}
+                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300/70"
+                />
+              ))}
+            </span>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
-      <div className="mt-2 flex items-center gap-2">
-        <form onSubmit={send} className="flex flex-1 gap-2">
-          <input
+      <div className="mt-2">
+        <form onSubmit={send} className="relative flex-1">
+          <textarea
+            ref={taRef}
+            rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) send(e);
+            }}
             placeholder="Ask Assistant..."
-            className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-sm placeholder:text-neutral-600 focus:border-cyan-400/50 focus:outline-none"
+            className="md-chat-scroll block max-h-40 w-full resize-none overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03] py-2.5 pl-4 pr-12 text-sm leading-relaxed placeholder:text-neutral-600 focus:border-cyan-400/50 focus:outline-none"
           />
           <button
             type="submit"
-            disabled={sending}
-            className="flex items-center rounded-md bg-cyan-400 px-3 text-sm font-medium text-[#06202a] hover:bg-cyan-300 disabled:opacity-50"
+            disabled={sending || !input.trim()}
+            title="Send"
+            className="absolute bottom-1.5 right-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-cyan-400 text-[#06202a] hover:bg-cyan-300 disabled:cursor-default disabled:opacity-40"
           >
-            <LuSend size={15} />
+            <LuSend size={14} />
           </button>
         </form>
-        <button
-          onClick={clear}
-          title="Clear chat"
-          className="flex items-center rounded-md px-2 py-1 text-sm text-neutral-500 hover:bg-white/5"
-        >
-          <LuX size={14} />
-        </button>
       </div>
     </div>
   );

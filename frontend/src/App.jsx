@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "./api";
 import Sidebar from "./components/Sidebar";
 import NoteEditor from "./components/NoteEditor";
 import AiPanel from "./components/AiPanel";
 import Dashboard from "./components/Dashboard";
-import { LuLayoutDashboard, LuPanelLeftOpen, LuPanelRightOpen, LuPlus, LuX } from "react-icons/lu";
-import { SiObsidian } from "react-icons/si";
+import { LuFileText, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
 
-function RibbonButton({ title, active, onClick, children }) {
+function NavButton({ title, active, onClick, children, dim }) {
   return (
     <button
       title={title}
       onClick={onClick}
-      className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
         active
           ? "bg-cyan-400/20 text-cyan-200"
-          : "text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
+          : dim
+            ? "cursor-default text-neutral-600"
+            : "text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
       }`}
     >
       {children}
@@ -27,13 +29,22 @@ function RibbonButton({ title, active, onClick, children }) {
 export default function App() {
   const [folders, setFolders] = useState([]);
   const [notes, setNotes] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
+  const [tabs, setTabs] = useState([]); // open note ids, Chrome-style
+  const [activeId, setActiveId] = useState(null);
+  const [previewId, setPreviewId] = useState(null); // VS Code-style transient tab
+  const [dirtyIds, setDirtyIds] = useState([]); // tabs with unsaved changes
+  const [closingId, setClosingId] = useState(null); // dirty tab awaiting discard confirm
+  const [deletingNote, setDeletingNote] = useState(null); // { id, title } awaiting delete confirm
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchAnchor, setSearchAnchor] = useState(null); // dropdown position under the button
   const [view, setView] = useState("notes"); // notes | dashboard
   const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 256);
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem("ui.rightW")) || 320);
   const [leftOpen, setLeftOpen] = useState(() => localStorage.getItem("ui.leftOpen") !== "false");
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem("ui.rightOpen") !== "false");
   const [sorting, setSorting] = useState(null); // { done, total } while AI sorts all
+  const [renaming, setRenaming] = useState(null); // { kind: 'note'|'folder', id } | null
 
   useEffect(() => {
     localStorage.setItem("ui.sidebarW", sidebarW);
@@ -62,35 +73,169 @@ export default function App() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Wraps a fallible action: shows the error in the banner.
+  // Wraps a fallible action: shows the error in the banner. Returns fn's result.
   async function run(fn) {
     try {
-      await fn();
+      return await fn();
     } catch (e) {
       setError(e.message);
     }
   }
 
-  const selectedNote = notes.find((n) => n._id === selectedId) || null;
+  const activeNote = notes.find((n) => n._id === activeId) || null;
+
+  const sq = searchQ.trim().toLowerCase();
+  const searchResults = sq ? notes.filter((n) => n.title.toLowerCase().includes(sq)) : [];
+
+  // Drop tabs whose notes vanished (e.g. deleted via AI chat).
+  useEffect(() => {
+    setTabs((prev) => {
+      const next = prev.filter((id) => notes.some((n) => n._id === id));
+      if (next.length !== prev.length && activeId && !next.includes(activeId)) {
+        setActiveId(next[next.length - 1] ?? null);
+      }
+      return next;
+    });
+    setDirtyIds((prev) => prev.filter((id) => notes.some((n) => n._id === id)));
+    if (previewId && !notes.some((n) => n._id === previewId)) setPreviewId(null);
+  }, [notes, activeId, previewId]);
+
+  // VS Code logic: opening a note replaces the transient preview tab,
+  // unless that tab was edited (then it is pinned). An already-open tab activates.
+  function openTab(id) {
+    if (tabs.includes(id)) {
+      setActiveId(id);
+      setView("notes");
+      return;
+    }
+    if (previewId && !dirtyIds.includes(previewId)) {
+      setTabs((prev) => prev.map((t) => (t === previewId ? id : t)));
+    } else {
+      setTabs((prev) => [...prev, id]);
+    }
+    setPreviewId(id);
+    setActiveId(id);
+    setView("notes");
+  }
+
+  // Navbar drop (and other explicit opens): always a fresh tab.
+  function openTabPinned(id) {
+    setTabs((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setActiveId(id);
+    setView("notes");
+  }
 
   function handleSelectNote(id) {
-    setSelectedId(id);
-    setView("notes");
+    openTab(id);
+  }
+
+  // Clicking a [[WikiLink]] opens that note, creating it when missing.
+  function handleOpenWikiLink(title) {
+    const t = (title || "").trim();
+    if (!t) return;
+    const found = notes.find((n) => n.title.toLowerCase() === t.toLowerCase());
+    if (found) {
+      openTabPinned(found._id);
+      return;
+    }
+    run(async () => {
+      const note = await api.createNote({ title: t, folderId: null });
+      setNotes((prev) => [note, ...prev]);
+      openTabPinned(note._id);
+    });
+  }
+
+  function closeTab(id) {
+    const idx = tabs.indexOf(id);
+    const next = tabs.filter((t) => t !== id);
+    setTabs(next);
+    if (previewId === id) setPreviewId(null);
+    setDirtyIds((prev) => prev.filter((x) => x !== id));
+    if (activeId === id) setActiveId(next[idx - 1] ?? next[idx] ?? null);
+  }
+
+  function requestCloseTab(id) {
+    if (dirtyIds.includes(id)) setClosingId(id);
+    else closeTab(id);
+  }
+
+  function handleDirtyChange(id, dirty) {
+    setDirtyIds((prev) => {
+      if (dirty) return prev.includes(id) ? prev : [...prev, id];
+      return prev.filter((x) => x !== id);
+    });
+    if (dirty) setPreviewId((prev) => (prev === id ? null : prev)); // edited tabs pin
+  }
+
+  // A note dropped onto the navbar opens as a new tab.
+  function handleNavbarDrop(e) {
+    e.preventDefault();
+    try {
+      const p = JSON.parse(e.dataTransfer.getData("text/plain"));
+      if (p?.kind === "note" && p.id) openTabPinned(p.id);
+    } catch {
+      // not our drag payload: ignore
+    }
   }
 
   function handleNewNote(folderId = null) {
     run(async () => {
       const note = await api.createNote({ title: "New Note", folderId });
       setNotes((prev) => [note, ...prev]);
-      setSelectedId(note._id);
-      setView("notes");
+      openTab(note._id);
+      setRenaming({ kind: "note", id: note._id });
     });
   }
 
-  function handleNewFolder(parentId, name) {
+  function handleRenameNote(id, title) {
+    setRenaming(null); // close the field at once; a failed save shows the error banner
     run(async () => {
-      const folder = await api.createFolder(name, parentId);
+      const updated = await api.updateNote(id, { title });
+      setNotes((prev) => prev.map((n) => (n._id === id ? updated : n)));
+    });
+  }
+
+  function handleRenameFolder(id, name) {
+    setRenaming(null); // close the field at once; a failed save shows the error banner
+    run(async () => {
+      const updated = await api.updateFolder(id, { name });
+      setFolders((prev) => prev.map((f) => (f._id === id ? updated : f)));
+    });
+  }
+
+  // Drag-and-drop move: a note or folder dropped onto a folder (or the empty
+  // tree area for top level / unfiled). Invalid folder moves throw to the banner.
+  function handleMove(kind, id, target) {
+    run(async () => {
+      if (kind === "note") {
+        const note = notes.find((n) => n._id === id);
+        const cur = note?.folderId?._id || note?.folderId || null;
+        if (String(cur || "") === String(target || "")) return;
+        await api.updateNote(id, { folderId: target });
+      } else {
+        const folder = folders.find((f) => f._id === id);
+        const cur = folder?.parentId?._id || folder?.parentId || null;
+        if (String(cur || "") === String(target || "")) return;
+        if (target) {
+          let cur2 = folders.find((f) => String(f._id) === String(target));
+          while (cur2) {
+            if (String(cur2._id) === String(id))
+              throw new Error("Cannot move a folder into itself or its subfolder");
+            const pid = cur2.parentId?._id || cur2.parentId || null;
+            cur2 = pid ? folders.find((f) => String(f._id) === String(pid)) : null;
+          }
+        }
+        await api.updateFolder(id, { parentId: target });
+      }
+      await refresh();
+    });
+  }
+
+  function handleNewFolder(parentId) {
+    run(async () => {
+      const folder = await api.createFolder("New Folder", parentId);
       setFolders((prev) => [...prev, folder]);
+      setRenaming({ kind: "folder", id: folder._id });
     });
   }
 
@@ -134,11 +279,16 @@ export default function App() {
   }
 
   function handleDeleteNote(id, title) {
-    if (!window.confirm(`Delete the "${title}" note?`)) return;
+    setDeletingNote({ id, title });
+  }
+
+  function confirmDeleteNote() {
+    const { id } = deletingNote;
+    setDeletingNote(null);
+    closeTab(id);
     run(async () => {
       await api.deleteNote(id);
       setNotes((prev) => prev.filter((n) => n._id !== id));
-      setSelectedId((prev) => (prev === id ? null : prev));
     });
   }
 
@@ -146,17 +296,6 @@ export default function App() {
     return run(async () => {
       const { note } = await api.upload(file, noteId);
       setNotes((prev) => prev.map((n) => (n._id === noteId ? note : n)));
-    });
-  }
-
-  function handleDetach(noteId, url) {
-    const note = notes.find((n) => n._id === noteId);
-    if (!note) return;
-    run(async () => {
-      const updated = await api.updateNote(noteId, {
-        attachments: (note.attachments || []).filter((a) => a.url !== url),
-      });
-      setNotes((prev) => prev.map((n) => (n._id === noteId ? updated : n)));
     });
   }
 
@@ -170,67 +309,155 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col gap-2 p-2 text-neutral-200">
-      <div className="flex min-h-0 flex-1 gap-2">
-      {/* Ribbon (Obsidian-style icon rail) */}
-      <nav className="glass flex w-11 shrink-0 flex-col items-center gap-1 rounded-2xl py-2">
-        <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400 text-[#06202a]">
-          <SiObsidian size={16} />
+      {/* Top navbar: logo - homepage - search - settings - left toggle - tabs - right toggle */}
+      <header
+        className="glass relative flex h-11 shrink-0 items-center gap-1 rounded-2xl px-2"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleNavbarDrop}
+      >
+        <NavButton
+          title="Home"
+          active={view === "notes" && !activeId}
+          onClick={() => {
+            setActiveId(null);
+            setView("notes");
+          }}
+        >
+          <LuHouse size={17} />
+        </NavButton>
+        <NavButton title="Dashboard" active={view === "dashboard"} onClick={() => setView("dashboard")}>
+          <LuLayoutDashboard size={17} />
+        </NavButton>
+        <NavButton
+          title="Search notes"
+          active={searchOpen}
+          onClick={(e) => {
+            if (searchOpen) {
+              setSearchOpen(false);
+              return;
+            }
+            const r = e.currentTarget.getBoundingClientRect();
+            setSearchAnchor({ top: r.bottom + 8, left: Math.min(r.left, window.innerWidth - 336) });
+            setSearchOpen(true);
+          }}
+        >
+          <LuSearch size={17} />
+        </NavButton>
+        <NavButton title="Settings (coming soon)" dim>
+          <LuSettings size={17} />
+        </NavButton>
+        <div className="mx-1 h-5 w-px shrink-0 bg-white/10" />
+        <NavButton title={leftOpen ? "Close left sidebar" : "Open left sidebar"} onClick={() => setLeftOpen((v) => !v)}>
+          {leftOpen ? <LuPanelLeftClose size={17} /> : <LuPanelLeftOpen size={17} />}
+        </NavButton>
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
+          {tabs.map((id) => {
+            const t = notes.find((n) => n._id === id);
+            const active = id === activeId && view === "notes";
+            const dirty = dirtyIds.includes(id);
+            const preview = id === previewId;
+            return (
+              <div
+                key={id}
+                onClick={() => {
+                  setActiveId(id);
+                  setView("notes");
+                }}
+                className={`group flex max-w-44 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm ${
+                  active ? "bg-cyan-400/15 text-cyan-100" : "text-neutral-400 hover:bg-white/5"
+                } ${preview ? "italic" : ""}`}
+              >
+                <LuFileText size={13} className="shrink-0 text-neutral-500" />
+                <span className="truncate">{t?.title || "Note"}</span>
+                {dirty ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      requestCloseTab(id);
+                    }}
+                    title="Unsaved changes — click to close"
+                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-white/10"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-cyan-300" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      requestCloseTab(id);
+                    }}
+                    title="Close tab"
+                    className={`flex shrink-0 items-center rounded p-0.5 hover:bg-white/10 hover:text-neutral-100 ${
+                      active ? "text-neutral-300" : "text-neutral-600 opacity-0 group-hover:opacity-100"
+                    }`}
+                  >
+                    <LuX size={12} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
-        <RibbonButton title="Dashboard" active={view === "dashboard"} onClick={() => setView("dashboard")}>
-          <LuLayoutDashboard size={18} />
-        </RibbonButton>
-        <RibbonButton title="New note" onClick={() => handleNewNote()}>
-          <LuPlus size={18} />
-        </RibbonButton>
-      </nav>
+        <NavButton title={rightOpen ? "Close right sidebar" : "Open right sidebar"} onClick={() => setRightOpen((v) => !v)}>
+          {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}
+        </NavButton>
+      </header>
 
+      <div className="flex min-h-0 flex-1 gap-2">
       {/* Left: folders + notes */}
-      {leftOpen ? (
+      {leftOpen && (
       <>
       <aside className="glass shrink-0 overflow-hidden rounded-2xl" style={{ width: sidebarW }}>
         <Sidebar
           folders={folders}
           notes={notes}
-          selectedNoteId={selectedId}
+          selectedNoteId={activeId}
           onSelectNote={handleSelectNote}
           onNewNote={handleNewNote}
           onNewFolder={handleNewFolder}
           onDeleteFolder={handleDeleteFolder}
-          onOpenDashboard={() => setView("dashboard")}
-          showingDashboard={view === "dashboard"}
           onDeleteNote={handleDeleteNote}
-          onCollapse={() => setLeftOpen(false)}
+          renaming={renaming}
+          onRenameStart={(kind, id) => setRenaming({ kind, id })}
+          onRenameNote={handleRenameNote}
+          onRenameFolder={handleRenameFolder}
+          onRenameCancel={() => setRenaming(null)}
+          onMove={handleMove}
           onSortAll={handleSortAll}
           sorting={sorting}
         />
       </aside>
       <Resizer onResize={(dx) => setSidebarW((w) => Math.min(480, Math.max(180, w + dx)))} />
       </>
-      ) : (
-      <button
-        onClick={() => setLeftOpen(true)}
-        title="Open sidebar"
-        className="glass flex w-8 shrink-0 items-start justify-center rounded-2xl py-3 text-neutral-400 hover:text-neutral-200"
-      >
-        <LuPanelLeftOpen size={16} />
-      </button>
       )}
 
-      {/* Center: wide AI panel when no note is open, editor otherwise */}
+      {/* Center: wide AI panel when no tab is open, editor otherwise */}
       <main className="glass flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
         {view === "dashboard" ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <Dashboard />
           </div>
-        ) : selectedNote ? (
-          <NoteEditor
-            key={selectedNote._id}
-            note={selectedNote}
-            onSave={handleSaveNote}
-            onDelete={handleDeleteNote}
-            onAttach={handleAttach}
-            onDetach={handleDetach}
-          />
+        ) : tabs.length > 0 ? (
+          // Every open tab keeps its own mounted editor (hidden when inactive),
+          // so unsaved drafts survive tab switches — VS Code style.
+          tabs.map((id) => {
+            const n = notes.find((x) => x._id === id);
+            if (!n) return null;
+            const isActive = id === activeId;
+            return (
+              <div key={id} className={isActive ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+                <NoteEditor
+                  note={n}
+                  active={isActive}
+                  onSave={handleSaveNote}
+                  onDelete={handleDeleteNote}
+                  onAttach={handleAttach}
+                  onDirtyChange={(dirty) => handleDirtyChange(n._id, dirty)}
+                  onOpenWikiLink={handleOpenWikiLink}
+                />
+              </div>
+            );
+          })
         ) : (
           <div className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col px-4 py-6">
             <AiPanel onChanged={() => run(refresh)} />
@@ -239,36 +466,132 @@ export default function App() {
       </main>
 
       {/* Right: narrow AI panel while a note is open */}
-      {view === "notes" && selectedNote && (rightOpen ? (
+      {view === "notes" && activeNote && rightOpen && (
         <>
         <Resizer onResize={(dx) => setRightW((w) => Math.min(560, Math.max(240, w - dx)))} />
         <aside className="glass shrink-0 overflow-hidden rounded-2xl" style={{ width: rightW }}>
           <AiPanel onChanged={() => run(refresh)} onCollapse={() => setRightOpen(false)} />
         </aside>
         </>
-      ) : (
-        <button
-          onClick={() => setRightOpen(true)}
-          title="Open panel"
-          className="glass flex w-8 shrink-0 items-start justify-center rounded-2xl py-3 text-neutral-400 hover:text-neutral-200"
+      )}
+
+      </div>
+
+      {/* Search dropdown (portal: immune to the navbar's backdrop-filter context) */}
+      {searchOpen &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setSearchOpen(false)} />
+            <div
+              className="glass fixed z-50 w-80 overflow-hidden rounded-xl p-2"
+              style={{ top: searchAnchor?.top ?? 60, left: searchAnchor?.left ?? 8 }}
+            >
+              <input
+                autoFocus
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearchOpen(false);
+                }}
+                placeholder="Search notes..."
+                className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus:border-cyan-400/50 focus:outline-none"
+              />
+              <div className="mt-1 max-h-64 overflow-y-auto">
+                {!sq ? (
+                  <p className="px-2 py-3 text-center text-xs text-neutral-600">
+                    Type to search across all notes.
+                  </p>
+                ) : searchResults.length === 0 ? (
+                  <p className="px-2 py-3 text-center text-xs text-neutral-600">No matches.</p>
+                ) : (
+                  searchResults.map((n) => (
+                    <button
+                      key={n._id}
+                      onClick={() => {
+                        openTab(n._id);
+                        setSearchOpen(false);
+                        setSearchQ("");
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 hover:bg-cyan-400/10"
+                    >
+                      <LuFileText size={14} className="shrink-0 text-neutral-500" />
+                      <span className="truncate">{n.title}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
+
+      {/* Delete-note confirm */}
+      {deletingNote && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setDeletingNote(null)}
         >
-          <LuPanelRightOpen size={16} />
-        </button>
-      ))}
+          <div
+            className="glass w-full max-w-sm rounded-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-neutral-100">Delete note</h3>
+            <p className="mt-1 text-sm text-neutral-400">
+              "{deletingNote.title}" will be permanently deleted. Are you sure?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setDeletingNote(null)}
+                className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+              >
+                Keep
+              </button>
+              <button
+                onClick={confirmDeleteNote}
+                className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      </div>
-
-      {/* Status bar */}
-      <div className="glass flex items-center justify-between rounded-2xl px-3 py-1 text-xs text-neutral-400">
-        <span>
-          {notes.length} notes · {folders.length} folders
-        </span>
-        <span>
-          {selectedNote
-            ? `${selectedNote.content?.split(/\s+/).filter(Boolean).length || 0} words`
-            : "Ready"}
-        </span>
-      </div>
+      {/* Unsaved-tab close confirm */}
+      {closingId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setClosingId(null)}
+        >
+          <div
+            className="glass w-full max-w-sm rounded-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-neutral-100">Unsaved changes</h3>
+            <p className="mt-1 text-sm text-neutral-400">
+              "{notes.find((n) => n._id === closingId)?.title || "Note"}" has unsaved changes.
+              Are you sure you want to close it without saving?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setClosingId(null)}
+                className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+              >
+                Keep editing
+              </button>
+              <button
+                onClick={() => {
+                  closeTab(closingId);
+                  setClosingId(null);
+                }}
+                className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error banner */}
       {error && (

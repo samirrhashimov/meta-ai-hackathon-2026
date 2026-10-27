@@ -19,6 +19,8 @@ export const api = {
       body: JSON.stringify({ name, parentId: parentId || null }),
     }),
   deleteFolder: (id) => request(`/api/folders/${id}`, { method: "DELETE" }),
+  updateFolder: (id, payload) =>
+    request(`/api/folders/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
 
   listNotes: () => request("/api/notes"),
   getNote: (id) => request(`/api/notes/${id}`),
