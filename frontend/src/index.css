@@ -48,6 +48,69 @@ body {
   border-left: 1px solid rgba(255, 255, 255, 0.09);
 }
 
+/* ---- Smooth modal & popover motion ---- */
+@keyframes modalBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalPanelIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes modalFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes modalPanelOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(6px) scale(0.98); }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  animation: modalBackdropIn 0.18s ease-out;
+}
+.modal-panel {
+  animation: modalPanelIn 0.24s cubic-bezier(0.21, 1.02, 0.55, 1);
+}
+.modal-backdrop.is-closing {
+  animation: modalFadeOut 0.16s ease-in forwards;
+}
+.modal-panel.is-closing {
+  animation: modalPanelOut 0.16s ease-in forwards;
+}
+.pop-in {
+  animation: popIn 0.16s ease-out;
+}
+
+/* Gemini-style voice wave: bars pulse while the mic is recording. */
+@keyframes micWave {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.mic-bar {
+  height: 100%;
+  transform-origin: center;
+  animation: micWave 0.9s ease-in-out infinite;
+}
+
+/* Subtle press feedback on buttons (explicit utilities still override). */
+button {
+  transition: transform 0.12s ease, background-color 0.15s ease, color 0.15s ease,
+    border-color 0.15s ease, opacity 0.15s ease;
+}
+button:active {
+  transform: scale(0.97);
+}
+
 /* Slim scrollbars with a cyan hint */
 ::-webkit-scrollbar {
   width: 8px;

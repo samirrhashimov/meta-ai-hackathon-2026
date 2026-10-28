@@ -8,6 +8,7 @@ const fileSchema = new Schema(
     folderId: { type: Schema.Types.ObjectId, ref: "Folder", default: null }, // null = unfiled
     mimeType: { type: String, default: "application/octet-stream" },
     size: { type: Number, default: 0 },
+    tags: { type: [String], default: [] },
     data: { type: Buffer, required: true }, // binary content (max 10MB, see route limit)
   },
   { timestamps: true }

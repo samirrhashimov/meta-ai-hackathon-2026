@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { LuFile, LuFileImage, LuFileText } from "react-icons/lu";
 import { fileContentUrl } from "../api";
 import { HyperEditor } from "./NoteEditor";
+import TagEditor from "./TagEditor";
 
 // Icon for a stored file, shared by the tree, tabs and the viewer header.
 export function FileTypeIcon({ mime, size = 14, className = "text-neutral-500" }) {
@@ -19,12 +20,34 @@ function isTextual(file) {
 // Center-area tab content for an uploaded file.
 // Text files (.md / .txt) open in the shared live editor with Save;
 // images and pdfs are previewed; actions live in the right-click menu.
-export default function FileViewer({ file, active, onSaveContent, onDelete }) {
+export default function FileViewer({ file, active, onSaveContent, onSaveTags, onDelete }) {
   const textual = isTextual(file);
   const mime = file.mimeType || "";
   const [text, setText] = useState(null); // original source (null = loading/failed)
   const [content, setContent] = useState(""); // edited value
   const [dirty, setDirty] = useState(false);
+  const [tags, setTags] = useState(file.tags || []);
+  const [tagsTouched, setTagsTouched] = useState(false);
+
+  // Fresh file (or background AI tags): adopt unless the user edited them.
+  useEffect(() => {
+    setTags(file.tags || []);
+    setTagsTouched(false);
+  }, [file._id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!tagsTouched) setTags(file.tags || []);
+  }, [file.tags]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tag edits save immediately and adopt the stored value back.
+  async function changeTags(t) {
+    setTags(t);
+    setTagsTouched(true);
+    const updated = await onSaveTags(file._id, t);
+    if (updated) {
+      setTags(updated.tags || []);
+      setTagsTouched(false);
+    }
+  }
 
   // Load the text source when the file changes.
   useEffect(() => {
@@ -103,6 +126,11 @@ export default function FileViewer({ file, active, onSaveContent, onDelete }) {
             {dirty ? "Save" : "Saved"}
           </button>
         )}
+      </div>
+
+      {/* Tags: AI-generated, manually editable (save instantly) */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-1.5">
+        <TagEditor tags={tags} onChange={changeTags} />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">

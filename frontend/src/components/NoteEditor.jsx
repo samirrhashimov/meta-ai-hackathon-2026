@@ -16,6 +16,7 @@ import "katex/dist/katex.min.css";
 import "hypermd/powerpack/fold-math-with-katex";
 // Mermaid is bundled (no <script> tag, no global timing issues).
 import mermaid from "mermaid";
+import TagEditor from "./TagEditor";
 
 mermaid.initialize({ startOnLoad: false, theme: "dark" });
 
@@ -184,6 +185,8 @@ const wikiOverlay = {
 export default function NoteEditor({ note, active, onSave, onDelete, onAttach, onDirtyChange, onOpenWikiLink }) {
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content || "");
+  const [tags, setTags] = useState(note.tags || []);
+  const [tagsTouched, setTagsTouched] = useState(false);
   const [dirty, setDirty] = useState(false);
   const titleRef = useRef(null);
 
@@ -216,6 +219,12 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
     if (document.activeElement !== titleRef.current) setTitle(note.title);
   }, [note.title]);
 
+  // Background AI tagging changes the tags while the note is open:
+  // adopt them unless the user edited the tags themselves.
+  useEffect(() => {
+    if (!tagsTouched) setTags(note.tags || []);
+  }, [note.tags]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function touch(fn) {
     return (...args) => {
       setDirty(true);
@@ -224,7 +233,8 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
   }
 
   async function save() {
-    await onSave(note._id, { title: title.trim() || "Untitled Note", content });
+    await onSave(note._id, { title: title.trim() || "Untitled Note", content, tags });
+    setTagsTouched(false);
     setDirty(false);
   }
 
@@ -265,6 +275,18 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
         >
           {dirty ? "Save" : "Saved"}
         </button>
+      </div>
+
+      {/* Tags: AI-generated, manually editable */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-1.5">
+        <TagEditor
+          tags={tags}
+          onChange={(t) => {
+            setTags(t);
+            setTagsTouched(true);
+            setDirty(true);
+          }}
+        />
       </div>
 
       {/* Live markdown (Obsidian logic): marks show on the cursor line, hide elsewhere */}

@@ -4,6 +4,8 @@ import path from "path";
 import { isValidObjectId } from "mongoose";
 import { File } from "../models/File.js";
 import { Folder } from "../models/Folder.js";
+import { Note } from "../models/Note.js";
+import { tagFileInBackground, tagNoteInBackground } from "../services/ai.js";
 
 const router = Router();
 
@@ -33,9 +35,15 @@ function toMeta(doc) {
     folderId: doc.folderId,
     mimeType: doc.mimeType,
     size: doc.size,
+    tags: doc.tags || [],
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
+}
+
+// Trims, dedupes and caps a user-supplied tag list.
+function sanitizeTags(tags) {
+  return [...new Set(tags.filter((t) => typeof t === "string").map((t) => t.trim()).filter(Boolean))].slice(0, 10);
 }
 
 async function assertFolder(folderId) {
@@ -55,6 +63,7 @@ async function assertFolder(folderId) {
 }
 
 // GET /api/files — all file metadata (filterable with ?folderId=...)
+// Markdown never stays a file: earlier .md uploads are unified into notes here.
 router.get("/", async (req, res, next) => {
   try {
     const filter = {};
@@ -62,6 +71,23 @@ router.get("/", async (req, res, next) => {
       if (req.query.folderId === "null" || req.query.folderId === "") filter.folderId = null;
       else if (isValidObjectId(req.query.folderId)) filter.folderId = req.query.folderId;
       else return res.status(400).json({ error: "Invalid folderId" });
+    }
+    const mdCandidates = await File.find({
+      ...filter,
+      $or: [{ mimeType: "text/markdown" }, { name: /\.md$/i }],
+    }).select("_id");
+    for (const c of mdCandidates) {
+      // Atomic claim: a concurrent list call can only convert each file once.
+      const doc = await File.findOneAndDelete({ _id: c._id });
+      if (!doc) continue;
+      const base = (doc.name || "note").replace(/\.md$/i, "");
+      const note = await Note.create({
+        title: (base.trim() || "Untitled Note").slice(0, 200),
+        content: (doc.data || Buffer.alloc(0)).toString("utf8"),
+        folderId: doc.folderId || null,
+        tags: doc.tags || [],
+      });
+      tagNoteInBackground(note._id);
     }
     const files = await File.find(filter).select("-data").sort({ createdAt: -1 });
     res.json(files);
@@ -80,6 +106,20 @@ router.post("/", upload.single("file"), async (req, res, next) => {
     } catch (err) {
       return res.status(err.status || 400).json({ error: err.message });
     }
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (req.file.mimetype === "text/markdown" || ext === ".md") {
+      // Markdown uploads become real notes: filename (without .md) is the
+      // title, the text is the content — identical to a created note.
+      const base = path.basename(req.file.originalname, ext);
+      const note = await Note.create({
+        title: (base.trim() || "Untitled Note").slice(0, 200),
+        content: (req.file.buffer || Buffer.alloc(0)).toString("utf8"),
+        folderId,
+        tags: [],
+      });
+      tagNoteInBackground(note._id);
+      return res.status(201).json({ note: await note.populate("folderId", "name") });
+    }
     const doc = await File.create({
       name: req.file.originalname,
       folderId,
@@ -87,6 +127,8 @@ router.post("/", upload.single("file"), async (req, res, next) => {
       size: req.file.size,
       data: req.file.buffer,
     });
+    // AI tags every upload in the background; the upload itself stays fast.
+    tagFileInBackground(doc._id);
     res.status(201).json({ file: toMeta(doc) });
   } catch (err) {
     next(err);
@@ -125,6 +167,11 @@ router.put("/:id", async (req, res, next) => {
       } catch (err) {
         return res.status(err.status || 400).json({ error: err.message });
       }
+    }
+    if (req.body.tags !== undefined) {
+      if (!Array.isArray(req.body.tags))
+        return res.status(400).json({ error: "Tags must be an array" });
+      doc.tags = sanitizeTags(req.body.tags);
     }
     if (req.body.content !== undefined) {
       if (typeof req.body.content !== "string")

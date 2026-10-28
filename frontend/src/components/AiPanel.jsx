@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { LuSend, LuSparkles } from "react-icons/lu";
+import { LuMic, LuSend, LuSparkles, LuSquare } from "react-icons/lu";
+import { encodeWav } from "../utils/audio";
 
 const HINTS = [
   "Create a Sports folder and move my gym note into it.",
@@ -33,8 +34,12 @@ function Chat({ onChanged }) {
   const [sending, setSending] = useState(false);
   const [hintIdx, setHintIdx] = useState(0);
   const [hintVisible, setHintVisible] = useState(true);
+  const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [speechError, setSpeechError] = useState("");
   const bottomRef = useRef(null);
   const taRef = useRef(null);
+  const audioRef = useRef(null); // { stream, ctx, processor, chunks } while recording
 
   // Auto-grow the input as the message gets longer. The scrollbar stays
   // hidden until the box hits its max height (also kills the phantom
@@ -76,6 +81,108 @@ function Chat({ onChanged }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
   }, [messages]);
+
+  // Release the mic if the panel unmounts mid-recording.
+  useEffect(() => {
+    return () => {
+      const a = audioRef.current;
+      audioRef.current = null;
+      if (a) {
+        try {
+          a.processor.disconnect();
+        } catch {
+          // already stopped
+        }
+        a.stream.getTracks().forEach((t) => t.stop());
+        a.ctx.close().catch(() => {});
+      }
+    };
+  }, []);
+
+  function showSpeechError(text) {
+    setSpeechError(text);
+    window.setTimeout(() => setSpeechError(""), 4000);
+  }
+
+  // Mic: records 16 kHz mono WAV until tapped again, then Muse Voice
+  // Transcribe turns it into text in the box.
+  async function toggleListen() {
+    if (transcribing) return;
+    if (listening) {
+      stopRecording();
+      return;
+    }
+    setSpeechError("");
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      showSpeechError("Microphone blocked — allow access in the browser bar.");
+      return;
+    }
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AC({ sampleRate: 16000 });
+      const src = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const chunks = [];
+      processor.onaudioprocess = (e) => {
+        chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      };
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      src.connect(processor);
+      processor.connect(mute);
+      mute.connect(ctx.destination);
+      if (ctx.state === "suspended") await ctx.resume().catch(() => {});
+      audioRef.current = { stream, ctx, processor, chunks };
+      setListening(true);
+    } catch {
+      stream.getTracks().forEach((t) => t.stop());
+      showSpeechError("Could not start recording in this browser.");
+    }
+  }
+
+  async function stopRecording() {
+    const a = audioRef.current;
+    audioRef.current = null;
+    setListening(false);
+    if (!a) return;
+    const { stream, ctx, processor, chunks } = a;
+    const rate = ctx.sampleRate || 16000;
+    try {
+      processor.disconnect();
+    } catch {
+      // already stopped
+    }
+    stream.getTracks().forEach((t) => t.stop());
+    const total = chunks.reduce((n, c) => n + c.length, 0);
+    await ctx.close().catch(() => {});
+    if (total < rate * 0.3) {
+      showSpeechError("Too short — hold the mic and speak.");
+      return;
+    }
+    const flat = new Float32Array(total);
+    let offset = 0;
+    for (const c of chunks) {
+      flat.set(c, offset);
+      offset += c.length;
+    }
+    setTranscribing(true);
+    try {
+      const { transcript } = await api.transcribe(encodeWav(flat, rate));
+      if (transcript) {
+        setInput((prev) => {
+          const sep = prev && !prev.endsWith(" ") && !prev.endsWith("\n") ? " " : "";
+          return (prev + sep + transcript).slice(0, 4000);
+        });
+      }
+    } catch (e) {
+      showSpeechError(e.message || "Transcription failed.");
+    } finally {
+      setTranscribing(false);
+    }
+  }
 
   async function send(e) {
     e.preventDefault();
@@ -167,9 +274,39 @@ function Chat({ onChanged }) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) send(e);
             }}
-            placeholder="Ask Assistant..."
-            className="md-chat-scroll block max-h-40 w-full resize-none overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03] py-2.5 pl-4 pr-12 text-sm leading-relaxed placeholder:text-neutral-600 focus:border-cyan-400/50 focus:outline-none"
+            placeholder={listening ? "" : transcribing ? "Transcribing..." : "Ask Assistant..."}
+            className="md-chat-scroll block max-h-40 w-full resize-none overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03] py-2.5 pl-4 pr-[84px] text-sm leading-relaxed placeholder:text-neutral-600 focus:border-cyan-400/50 focus:outline-none"
           />
+          {listening && !input && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="flex h-6 items-center gap-1">
+                {Array.from({ length: 21 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="mic-bar w-[3px] rounded-full bg-cyan-300/80"
+                    style={{ animationDelay: `${(i % 7) * 110}ms` }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={toggleListen}
+            disabled={transcribing}
+            title={listening ? "Stop recording" : "Voice input (Muse)"}
+            className={`absolute bottom-1.5 right-11 flex h-8 w-8 items-center justify-center rounded-full disabled:opacity-40 ${
+              listening
+                ? "bg-red-400/20 text-red-300 hover:bg-red-400/30"
+                : "text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
+            }`}
+          >
+            {listening ? (
+              <LuSquare size={13} className="animate-pulse" />
+            ) : (
+              <LuMic size={15} className={transcribing ? "animate-pulse" : ""} />
+            )}
+          </button>
           <button
             type="submit"
             disabled={sending || !input.trim()}
@@ -179,6 +316,7 @@ function Chat({ onChanged }) {
             <LuSend size={14} />
           </button>
         </form>
+        {speechError && <p className="mt-1 px-2 text-xs text-red-300">{speechError}</p>}
       </div>
     </div>
   );

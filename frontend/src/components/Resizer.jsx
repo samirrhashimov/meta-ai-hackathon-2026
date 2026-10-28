@@ -1,18 +1,24 @@
 import { useCallback, useRef } from "react";
 
 // Thin drag handle between panes. Reports horizontal drag distance.
-export default function Resizer({ onResize }) {
+// onDragStart/onDragEnd let the app suspend width transitions mid-drag.
+export default function Resizer({ onResize, onDragStart, onDragEnd }) {
   const drag = useRef(null);
 
-  const onPointerDown = useCallback((e) => {
-    e.preventDefault();
-    drag.current = { startX: e.clientX };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
+  const onPointerDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      drag.current = { startX: e.clientX };
+      e.currentTarget.setPointerCapture(e.pointerId);
+      onDragStart?.();
+    },
+    [onDragStart]
+  );
 
   const finish = useCallback(() => {
     drag.current = null;
-  }, []);
+    onDragEnd?.();
+  }, [onDragEnd]);
 
   const onPointerMove = useCallback(
     (e) => {

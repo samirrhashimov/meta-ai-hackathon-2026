@@ -18,6 +18,7 @@ import {
   LuFolderPlus,
   LuHistory,
   LuInfo,
+  LuLoaderCircle,
   LuPencil,
   LuPlus,
   LuSparkles,
@@ -26,6 +27,7 @@ import {
 } from "react-icons/lu";
 import { fileContentUrl } from "../api";
 import { FileTypeIcon } from "./FileViewer";
+import Modal from "./Modal";
 
 function formatSize(bytes) {
   if (!bytes) return "0 B";
@@ -48,6 +50,19 @@ function downloadFile(file) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+// Browser download of a note as a .md file.
+function downloadNote(note) {
+  const blob = new Blob([note.content || ""], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${note.title || "note"}.md`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // Left panel: folder tree + note list + search.
@@ -112,6 +127,8 @@ export default function Sidebar({
   const rootFolders = folders.filter((f) => !f.parentId).sort(folderFn);
   const unfiled = notesByFolder.unfiled || [];
   const unfiledCount = unfiled.length;
+  const unfiledFilesCount = (files || []).filter((f) => !f.folderId).length;
+  const totalUnfiled = unfiledCount + unfiledFilesCount;
 
   // Files grouped by folder, sorted with the same sort mode (by name for A-Z).
   const fileFn =
@@ -265,6 +282,7 @@ export default function Sidebar({
   const blankMenu = [
     { label: "New Note", icon: LuFilePlus, action: () => onNewNote(null) },
     { label: "New Folder", icon: LuFolderPlus, action: () => onNewFolder(null) },
+    { label: "Upload File", icon: LuUpload, action: () => fileInputRef.current?.click() },
   ];
 
   const folderMenu = (folder) => [
@@ -284,6 +302,18 @@ export default function Sidebar({
 
   const noteMenu = (note) => [
     { label: "Open", icon: LuExternalLink, action: () => onSelectNote(note._id) },
+    { label: "Download", icon: LuDownload, action: () => downloadNote(note) },
+    {
+      label: "Info",
+      icon: LuInfo,
+      action: () =>
+        setShowInfo({
+          ...note,
+          name: note.title,
+          mimeType: "Markdown note",
+          size: new TextEncoder().encode(note.content || "").length,
+        }),
+    },
     { label: "Rename", icon: LuPencil, action: () => onRenameStart("note", note._id) },
     { label: "Delete Note", icon: LuTrash2, danger: true, action: () => onDeleteNote(note._id, note.title) },
   ];
@@ -298,7 +328,7 @@ export default function Sidebar({
 
   return (
     <div className="flex h-full flex-col" onContextMenu={(e) => openMenu(e, blankMenu)}>
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-3">
+      <div className="relative flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-3">
         <h1 className="text-sm font-semibold tracking-wide text-neutral-100">My Notes</h1>
           <div className="flex items-center gap-1">
             <button
@@ -317,7 +347,7 @@ export default function Sidebar({
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
-              title="Add file"
+              title="Upload file"
               className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
             >
               <LuUpload size={15} />
@@ -342,17 +372,31 @@ export default function Sidebar({
 
             <button
               onClick={onSortAll}
-              disabled={sorting !== null || unfiledCount === 0}
+              disabled={sorting !== null || totalUnfiled === 0}
               title={
                 sorting
                   ? `Sorting ${sorting.done}/${sorting.total}...`
-                  : `AI Sort All${unfiledCount > 0 ? ` (${unfiledCount} unfiled)` : ""}`
+                  : `AI Sort All${totalUnfiled > 0 ? ` (${totalUnfiled} unfiled)` : ""}`
               }
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400 text-[#06202a] hover:bg-cyan-300 disabled:cursor-default disabled:opacity-40"
+              className={`flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400 text-[#06202a] hover:bg-cyan-300 disabled:cursor-default ${
+                sorting ? "" : "disabled:opacity-40"
+              }`}
             >
-              <LuSparkles size={15} className={sorting ? "animate-pulse" : ""} />
+              {sorting ? (
+                <LuLoaderCircle size={15} className="animate-spin" />
+              ) : (
+                <LuSparkles size={15} />
+              )}
             </button>
           </div>
+        {sorting && (
+          <div
+            className="absolute bottom-0 left-0 h-0.5 bg-cyan-300 transition-[width] duration-300 ease-out"
+            style={{
+              width: `${sorting.total > 0 ? (sorting.done / sorting.total) * 100 : 0}%`,
+            }}
+          />
+        )}
       </div>
       <input
         ref={fileInputRef}
@@ -369,7 +413,7 @@ export default function Sidebar({
         <div
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
-          className="glass fixed z-50 w-44 overflow-hidden rounded-xl p-1 text-sm"
+          className="glass pop-in fixed z-50 w-44 overflow-hidden rounded-xl p-1 text-sm"
           style={{ left: menu.x, top: menu.y }}
         >
           {menu.items.map((item) => (
@@ -401,58 +445,61 @@ export default function Sidebar({
       )}
 
       {/* File info (from the file row right-click menu) */}
-      {showInfo &&
-        createPortal(
-          (() => {
-            const fid = showInfo.folderId?._id || showInfo.folderId || null;
-            const location = fid
-              ? folders.find((x) => String(x._id) === String(fid))?.name || "Unknown folder"
-              : "Unfiled";
+      {showInfo && (
+        <Modal onClose={() => setShowInfo(null)}>
+          {(close) => {
+            // Location as a path: "/" at the root, "/Parent/Child" inside folders.
+            const folderPath = (startId) => {
+              if (!startId) return "/";
+              const parts = [];
+              const seen = new Set();
+              let cur = folders.find((x) => String(x._id) === String(startId));
+              while (cur && !seen.has(String(cur._id))) {
+                seen.add(String(cur._id));
+                parts.unshift(cur.name);
+                const pid = cur.parentId?._id || cur.parentId || null;
+                cur = pid ? folders.find((x) => String(x._id) === String(pid)) : null;
+              }
+              return parts.length > 0 ? `/${parts.join("/")}` : "Unknown folder";
+            };
+            const location = folderPath(showInfo.folderId?._id || showInfo.folderId || null);
             return (
-              <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-                onClick={() => setShowInfo(null)}
-              >
-                <div
-                  className="glass w-full max-w-sm rounded-2xl p-5"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <h3 className="truncate text-sm font-semibold text-neutral-100">
-                    {showInfo.name}
-                  </h3>
-                  <dl className="mt-3 space-y-1.5 text-sm">
-                    {[
-                      ["Type", showInfo.mimeType || "Unknown"],
-                      ["Size", formatSize(showInfo.size)],
-                      ["Location", location],
-                      ["Created", formatDate(showInfo.createdAt)],
-                      ["Modified", formatDate(showInfo.updatedAt)],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex gap-3">
-                        <dt className="w-20 shrink-0 text-neutral-500">{k}</dt>
-                        <dd
-                          className="min-w-0 flex-1 truncate text-neutral-200"
-                          title={String(v)}
-                        >
-                          {v}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      onClick={() => setShowInfo(null)}
-                      className="rounded-lg bg-cyan-400 px-4 py-1.5 text-sm font-medium text-[#06202a] hover:bg-cyan-300"
-                    >
-                      Close
-                    </button>
-                  </div>
+              <div className="glass w-full max-w-sm rounded-2xl p-5">
+                <h3 className="truncate text-sm font-semibold text-neutral-100">
+                  {showInfo.name}
+                </h3>
+                <dl className="mt-3 space-y-1.5 text-sm">
+                  {[
+                    ["Type", showInfo.mimeType || "Unknown"],
+                    ["Size", formatSize(showInfo.size)],
+                    ["Location", location],
+                    ["Created", formatDate(showInfo.createdAt)],
+                    ["Modified", formatDate(showInfo.updatedAt)],
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex gap-3">
+                      <dt className="w-20 shrink-0 text-neutral-500">{k}</dt>
+                      <dd
+                        className="min-w-0 flex-1 truncate text-neutral-200"
+                        title={String(v)}
+                      >
+                        {v}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={close}
+                    className="rounded-lg bg-cyan-400 px-4 py-1.5 text-sm font-medium text-[#06202a] hover:bg-cyan-300"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             );
-          })(),
-          document.body
-        )}
+          }}
+        </Modal>
+      )}
 
       <div
         className="flex-1 overflow-y-auto p-2"

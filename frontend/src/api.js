@@ -32,6 +32,8 @@ export const api = {
 
   organize: (noteId) =>
     request("/api/ai/organize", { method: "POST", body: JSON.stringify({ noteId }) }),
+  organizeFile: (fileId) =>
+    request("/api/ai/organize-file", { method: "POST", body: JSON.stringify({ fileId }) }),
 
   chat: (message) =>
     request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message }) }),
@@ -40,13 +42,24 @@ export const api = {
 
   insights: (refresh = false) => request(`/api/ai/insights${refresh ? "?refresh=1" : ""}`),
 
+  // Sends a WAV recording to Muse Voice Transcribe; resolves { transcript }.
+  transcribe: async (wavBlob) => {
+    const form = new FormData();
+    form.append("audio", wavBlob, "recording.wav");
+    const res = await fetch(`${API_BASE}/api/ai/transcribe`, { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Transcription failed");
+    return data;
+  },
+
   listFiles: () => request("/api/files"),
   updateFile: (id, payload) =>
     request(`/api/files/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   deleteFile: (id) => request(`/api/files/${id}`, { method: "DELETE" }),
 
   // Uploads one or more files into a folder (folderId null = unfiled).
-  // Binaries are stored in MongoDB; returns [{ file }] metadata.
+  // Binaries are stored in MongoDB. Markdown uploads come back as notes
+  // ({ note }); everything else as file metadata ({ file }).
   uploadFiles: async (fileList, folderId) => {
     const out = [];
     for (const file of fileList) {
@@ -56,7 +69,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/files`, { method: "POST", body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Upload failed");
-      out.push(data.file);
+      out.push(data);
     }
     return out;
   },

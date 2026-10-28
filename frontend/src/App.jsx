@@ -4,9 +4,11 @@ import { api } from "./api";
 import Sidebar from "./components/Sidebar";
 import NoteEditor from "./components/NoteEditor";
 import FileViewer, { FileTypeIcon } from "./components/FileViewer";
+import TagsModal from "./components/TagsModal";
+import Modal from "./components/Modal";
 import AiPanel from "./components/AiPanel";
 import Dashboard from "./components/Dashboard";
-import { LuFileText, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuX } from "react-icons/lu";
+import { LuFileText, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
 
 function NavButton({ title, active, onClick, children, dim }) {
@@ -39,12 +41,14 @@ export default function App() {
   const [deletingNote, setDeletingNote] = useState(null); // { id, title } awaiting delete confirm
   const [deletingFile, setDeletingFile] = useState(null); // { id, name } awaiting delete confirm
   const [searchOpen, setSearchOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false); // tags browser modal
   const [searchQ, setSearchQ] = useState("");
   const [searchAnchor, setSearchAnchor] = useState(null); // dropdown position under the button
   const [view, setView] = useState("notes"); // notes | dashboard
   const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 256);
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem("ui.rightW")) || 320);
   const [leftOpen, setLeftOpen] = useState(() => localStorage.getItem("ui.leftOpen") !== "false");
+  const [draggingPane, setDraggingPane] = useState(false); // suspends width transition mid-drag
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem("ui.rightOpen") !== "false");
   const [sorting, setSorting] = useState(null); // { done, total } while AI sorts all
   const [renaming, setRenaming] = useState(null); // { kind: 'note'|'folder', id } | null
@@ -94,6 +98,8 @@ export default function App() {
   const activeFile = isFileTab(activeId)
     ? files.find((f) => f._id === fileIdOf(activeId)) || null
     : null;
+  // The center shows a tab (not the Assistant): used for the right pane + toggle.
+  const centerHasTab = view === "notes" && (activeNote !== null || activeFile !== null);
 
   const sq = searchQ.trim().toLowerCase();
   const searchResults = sq ? notes.filter((n) => n.title.toLowerCase().includes(sq)) : [];
@@ -303,27 +309,38 @@ export default function App() {
     });
   }
 
-  // Files every unfiled note into folders with AI, one by one.
+  // Files every unfiled note and upload into folders with AI, one by one.
   function handleSortAll() {
-    const unfiled = notes.filter((n) => !n.folderId);
-    if (unfiled.length === 0 || sorting) return;
+    const unfiledNotes = notes.filter((n) => !n.folderId);
+    const unfiledFiles = files.filter((f) => !f.folderId);
+    const total = unfiledNotes.length + unfiledFiles.length;
+    if (total === 0 || sorting) return;
     run(async () => {
-      setSorting({ done: 0, total: unfiled.length });
+      setSorting({ done: 0, total });
       let failed = 0;
+      const step = () => setSorting((s) => s && { done: s.done + 1, total: s.total });
       try {
-        for (const n of unfiled) {
+        for (const n of unfiledNotes) {
           try {
             await api.organize(n._id);
           } catch {
             failed++;
           }
-          setSorting((s) => s && { done: s.done + 1, total: s.total });
+          step();
+        }
+        for (const f of unfiledFiles) {
+          try {
+            await api.organizeFile(f._id);
+          } catch {
+            failed++;
+          }
+          step();
         }
       } finally {
         setSorting(null);
         await refresh();
       }
-      if (failed > 0) setError(`${failed} note(s) could not be sorted`);
+      if (failed > 0) setError(`${failed} item(s) could not be sorted`);
     });
   }
 
@@ -332,11 +349,18 @@ export default function App() {
   }
 
   // Files dropped onto a folder (or picked via the sidebar button) upload
-  // straight into that folder; binaries land in MongoDB.
+  // straight into that folder; binaries land in MongoDB. Markdown uploads
+  // come back as real notes and open in a tab like created notes.
   function handleUploadFiles(fileList, folderId) {
     run(async () => {
-      const uploaded = await api.uploadFiles(fileList, folderId);
-      setFiles((prev) => [...uploaded, ...prev]);
+      const results = await api.uploadFiles(fileList, folderId);
+      const newFiles = results.map((r) => r.file).filter(Boolean);
+      const newNotes = results.map((r) => r.note).filter(Boolean);
+      if (newFiles.length > 0) setFiles((prev) => [...newFiles, ...prev]);
+      if (newNotes.length > 0) {
+        setNotes((prev) => [...newNotes, ...prev]);
+        openTab(newNotes[newNotes.length - 1]._id);
+      }
     });
   }
 
@@ -353,6 +377,15 @@ export default function App() {
     return run(async () => {
       const updated = await api.updateFile(id, { content });
       setFiles((prev) => prev.map((f) => (f._id === id ? updated : f)));
+    });
+  }
+
+  // Tag edits (notes save with Save; files save instantly) — returns the update.
+  function handleSaveFileTags(id, tags) {
+    return run(async () => {
+      const updated = await api.updateFile(id, { tags });
+      setFiles((prev) => prev.map((f) => (f._id === id ? updated : f)));
+      return updated;
     });
   }
 
@@ -407,7 +440,10 @@ export default function App() {
           title="Home"
           active={view === "notes" && !activeId}
           onClick={() => {
-            setActiveId(null);
+            // Home goes to notes: the active tab if there is one,
+            // otherwise the Assistant. Never clears the tab position,
+            // so Dashboard -> Home resumes where you left off.
+            if (!activeId && tabs.length > 0) setActiveId(tabs[tabs.length - 1]);
             setView("notes");
           }}
         >
@@ -430,6 +466,9 @@ export default function App() {
           }}
         >
           <LuSearch size={17} />
+        </NavButton>
+        <NavButton title="Browse tags" active={tagsOpen} onClick={() => setTagsOpen((v) => !v)}>
+          <LuTag size={17} />
         </NavButton>
         <NavButton title="Settings (coming soon)" dim>
           <LuSettings size={17} />
@@ -493,16 +532,25 @@ export default function App() {
             );
           })}
         </div>
-        <NavButton title={rightOpen ? "Close right sidebar" : "Open right sidebar"} onClick={() => setRightOpen((v) => !v)}>
-          {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}
-        </NavButton>
+        {/* The right panel only exists while a tab is open; the Assistant
+            in the center makes it redundant, so the toggle hides too. */}
+        {centerHasTab && (
+          <NavButton title={rightOpen ? "Close right sidebar" : "Open right sidebar"} onClick={() => setRightOpen((v) => !v)}>
+            {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}
+          </NavButton>
+        )}
       </header>
 
       <div className="flex min-h-0 flex-1">
-      {/* Left: folders + notes */}
-      {leftOpen && (
-      <>
-      <aside className="glass pane-left shrink-0 overflow-hidden" style={{ width: sidebarW }}>
+      {/* Left: folders + notes (width animates; content keeps its size inside) */}
+      <aside
+        className={`glass pane-left shrink-0 overflow-hidden ${
+          draggingPane ? "" : "transition-[width] duration-300 ease-in-out"
+        } ${leftOpen ? "" : "pointer-events-none"}`}
+        style={{ width: leftOpen ? sidebarW : 0 }}
+        aria-hidden={!leftOpen}
+      >
+        <div className="h-full" style={{ width: sidebarW }}>
         <Sidebar
           folders={folders}
           notes={notes}
@@ -527,9 +575,14 @@ export default function App() {
           onSortAll={handleSortAll}
           sorting={sorting}
         />
+        </div>
       </aside>
-      <Resizer onResize={(dx) => setSidebarW((w) => Math.min(480, Math.max(180, w + dx)))} />
-      </>
+      {leftOpen && (
+        <Resizer
+          onResize={(dx) => setSidebarW((w) => Math.min(480, Math.max(180, w + dx)))}
+          onDragStart={() => setDraggingPane(true)}
+          onDragEnd={() => setDraggingPane(false)}
+        />
       )}
 
       {/* Center: wide AI panel when no tab is open, editor otherwise */}
@@ -552,6 +605,7 @@ export default function App() {
                     file={f}
                     active={isActive}
                     onSaveContent={handleSaveFileContent}
+                    onSaveTags={handleSaveFileTags}
                     onDelete={handleDeleteFile}
                   />
                 </div>
@@ -580,12 +634,26 @@ export default function App() {
         )}
       </main>
 
-      {/* Right: narrow AI panel while a note is open */}
-      {view === "notes" && (activeNote || activeFile) && rightOpen && (
+      {/* Right: narrow AI panel while a tab is open (width animates) */}
+      {centerHasTab && (
         <>
-        <Resizer onResize={(dx) => setRightW((w) => Math.min(560, Math.max(240, w - dx)))} />
-        <aside className="glass pane-right shrink-0 overflow-hidden" style={{ width: rightW }}>
-          <AiPanel onChanged={() => run(refresh)} />
+        {rightOpen && (
+          <Resizer
+            onResize={(dx) => setRightW((w) => Math.min(560, Math.max(240, w - dx)))}
+            onDragStart={() => setDraggingPane(true)}
+            onDragEnd={() => setDraggingPane(false)}
+          />
+        )}
+        <aside
+          className={`glass pane-right shrink-0 overflow-hidden ${
+            draggingPane ? "" : "transition-[width] duration-300 ease-in-out"
+          } ${rightOpen ? "" : "pointer-events-none"}`}
+          style={{ width: rightOpen ? rightW : 0 }}
+          aria-hidden={!rightOpen}
+        >
+          <div className="h-full" style={{ width: rightW }}>
+            <AiPanel onChanged={() => run(refresh)} />
+          </div>
         </aside>
         </>
       )}
@@ -598,7 +666,7 @@ export default function App() {
           <>
             <div className="fixed inset-0 z-40" onClick={() => setSearchOpen(false)} />
             <div
-              className="glass fixed z-50 w-80 overflow-hidden rounded-xl p-2"
+              className="glass pop-in fixed z-50 w-80 overflow-hidden rounded-xl p-2"
               style={{ top: searchAnchor?.top ?? 60, left: searchAnchor?.left ?? 8 }}
             >
               <input
@@ -640,104 +708,109 @@ export default function App() {
           document.body
         )}
 
+      {/* Tags browser */}
+      {tagsOpen && (
+        <TagsModal
+          notes={notes}
+          files={files}
+          onOpenNote={(id) => {
+            setTagsOpen(false);
+            openTab(id);
+          }}
+          onOpenFile={(id) => {
+            setTagsOpen(false);
+            openFileTab(id);
+          }}
+          onClose={() => setTagsOpen(false)}
+        />
+      )}
+
       {/* Delete-note confirm */}
       {deletingNote && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setDeletingNote(null)}
-        >
-          <div
-            className="glass w-full max-w-sm rounded-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-semibold text-neutral-100">Delete note</h3>
-            <p className="mt-1 text-sm text-neutral-400">
-              "{deletingNote.title}" will be permanently deleted. Are you sure?
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setDeletingNote(null)}
-                className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
-              >
-                Keep
-              </button>
-              <button
-                onClick={confirmDeleteNote}
-                className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
-              >
-                Delete
-              </button>
+        <Modal onClose={() => setDeletingNote(null)}>
+          {(close) => (
+            <div className="glass w-full max-w-sm rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-neutral-100">Delete note</h3>
+              <p className="mt-1 text-sm text-neutral-400">
+                "{deletingNote.title}" will be permanently deleted. Are you sure?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={close}
+                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                >
+                  Keep
+                </button>
+                <button
+                  onClick={confirmDeleteNote}
+                  className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </Modal>
       )}
 
       {/* Delete-file confirm */}
       {deletingFile && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setDeletingFile(null)}
-        >
-          <div
-            className="glass w-full max-w-sm rounded-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-semibold text-neutral-100">Delete file</h3>
-            <p className="mt-1 text-sm text-neutral-400">
-              "{deletingFile.name}" will be permanently deleted. Are you sure?
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setDeletingFile(null)}
-                className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
-              >
-                Keep
-              </button>
-              <button
-                onClick={confirmDeleteFile}
-                className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
-              >
-                Delete
-              </button>
+        <Modal onClose={() => setDeletingFile(null)}>
+          {(close) => (
+            <div className="glass w-full max-w-sm rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-neutral-100">Delete file</h3>
+              <p className="mt-1 text-sm text-neutral-400">
+                "{deletingFile.name}" will be permanently deleted. Are you sure?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={close}
+                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                >
+                  Keep
+                </button>
+                <button
+                  onClick={confirmDeleteFile}
+                  className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </Modal>
       )}
 
       {/* Unsaved-tab close confirm */}
       {closingId && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setClosingId(null)}
-        >
-          <div
-            className="glass w-full max-w-sm rounded-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-semibold text-neutral-100">Unsaved changes</h3>
-            <p className="mt-1 text-sm text-neutral-400">
-              "{notes.find((n) => n._id === closingId)?.title || "Note"}" has unsaved changes.
-              Are you sure you want to close it without saving?
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setClosingId(null)}
-                className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
-              >
-                Keep editing
-              </button>
-              <button
-                onClick={() => {
-                  closeTab(closingId);
-                  setClosingId(null);
-                }}
-                className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
-              >
-                Discard
-              </button>
+        <Modal onClose={() => setClosingId(null)}>
+          {(close) => (
+            <div className="glass w-full max-w-sm rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-neutral-100">Unsaved changes</h3>
+              <p className="mt-1 text-sm text-neutral-400">
+                "{notes.find((n) => n._id === closingId)?.title || "Note"}" has unsaved changes.
+                Are you sure you want to close it without saving?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={close}
+                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                >
+                  Keep editing
+                </button>
+                <button
+                  onClick={() => {
+                    closeTab(closingId);
+                    setClosingId(null);
+                  }}
+                  className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                >
+                  Discard
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </Modal>
       )}
 
       {/* Error banner */}

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
-import { aiEnabled, organizeNote } from "../services/ai.js";
+import multer from "multer";
+import { aiEnabled, organizeFile, organizeNote, transcribeAudio } from "../services/ai.js";
 import { runChat } from "../services/chat.js";
 import { getInsights } from "../services/insights.js";
 import { ChatMessage } from "../models/ChatMessage.js";
@@ -51,6 +52,47 @@ router.get("/chat", async (req, res, next) => {
   try {
     const messages = await ChatMessage.find().sort({ createdAt: 1 }).limit(100);
     res.json(messages);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/ai/organize-file — { fileId }: file the upload into a folder with AI.
+router.post("/organize-file", async (req, res, next) => {
+  try {
+    if (!aiEnabled()) {
+      return res
+        .status(503)
+        .json({ error: "AI key is not set (backend/.env → META_API_KEY)" });
+    }
+    const { fileId } = req.body;
+    if (!fileId || !isValidObjectId(fileId)) {
+      return res.status(400).json({ error: "Invalid fileId" });
+    }
+    const result = await organizeFile(fileId);
+    res.json(result);
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    next(err);
+  }
+});
+
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+// POST /api/ai/transcribe — form-data: audio (wav) → { transcript }.
+router.post("/transcribe", audioUpload.single("audio"), async (req, res, next) => {
+  try {
+    if (!aiEnabled()) {
+      return res
+        .status(503)
+        .json({ error: "AI key is not set (backend/.env → META_API_KEY)" });
+    }
+    if (!req.file) return res.status(400).json({ error: "No audio uploaded" });
+    const transcript = await transcribeAudio(req.file.buffer);
+    res.json({ transcript });
   } catch (err) {
     next(err);
   }
