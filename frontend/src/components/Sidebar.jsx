@@ -413,7 +413,7 @@ export default function Sidebar({
         <div
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
-          className="glass pop-in fixed z-50 w-44 overflow-hidden rounded-xl p-1 text-sm"
+          className="glass-menu pop-in fixed z-50 w-44 overflow-hidden rounded-xl p-1 text-sm"
           style={{ left: menu.x, top: menu.y }}
         >
           {menu.items.map((item) => (

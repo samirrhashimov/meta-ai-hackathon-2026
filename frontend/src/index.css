@@ -48,6 +48,15 @@ body {
   border-left: 1px solid rgba(255, 255, 255, 0.09);
 }
 
+/* Right-click menus only: denser glass, still blurred and translucent. */
+.glass-menu {
+  background: rgba(20, 24, 31, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.55);
+}
+
 /* ---- Smooth modal & popover motion ---- */
 @keyframes modalBackdropIn {
   from { opacity: 0; }
@@ -100,6 +109,20 @@ body {
   height: 100%;
   transform-origin: center;
   animation: micWave 0.9s ease-in-out infinite;
+}
+
+/* Gentle hover for the Assistant landing icon. */
+@keyframes floatY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+.animate-float {
+  animation: floatY 4s ease-in-out infinite;
 }
 
 /* Subtle press feedback on buttons (explicit utilities still override). */

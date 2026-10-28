@@ -7,7 +7,7 @@ function config() {
   return {
     key: process.env.META_API_KEY || "",
     base: process.env.META_API_BASE_URL || "https://api.meta.ai/v1",
-    model: process.env.META_MODEL || "muse-spark-1.3",
+    model: process.env.META_MODEL || "muse-spark-1.3-contributor",
   };
 }
 

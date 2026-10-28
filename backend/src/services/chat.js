@@ -3,6 +3,9 @@ import { Folder } from "../models/Folder.js";
 import { Note } from "../models/Note.js";
 import { ChatMessage } from "../models/ChatMessage.js";
 import { aiConfig } from "./ai.js";
+import { opAfter, revertCheckpoint, saveCheckpoint, snapshotBefore } from "./checkpoints.js";
+
+export { revertCheckpoint };
 
 // Tools the chat model may call (OpenAI function-calling format).
 const TOOLS = [
@@ -192,14 +195,41 @@ const CHAT_SYSTEM = `You are the assistant of a note-taking app. You manage the 
 Rules:
 - To act on existing notes/folders, first look at the current state with listNotes/listFolders. Never invent ids.
 - After acting, briefly confirm what you did (note titles and folder names, not ids).
-- Keep answers short. Respond in the user's language.`;
+- Keep answers short. Respond in the user's language.
+- Never use em dashes (—) or long dashes in your replies. Use commas, colons, or short sentences instead.`;
 
-async function chatCompletion(messages) {
-  const { key, base, model } = aiConfig();
+// Safety net for the no-em-dash rule: rewrite any that slip through.
+function cleanReply(text) {
+  return (text || "")
+    .replace(/[ \t]+—[ \t]+/g, ", ")
+    .replace(/—/g, ",")
+    .replace(/ ,/g, ",")
+    .replace(/,{2,}/g, ",")
+    .replace(/^,\s*/gm, "");
+}
+
+// Chat-capable models the user may pick in the Assistant header.
+// Extend/override with backend/.env: META_MODELS="muse-spark-1.3,other-model".
+// Contributor tiers are cheaper but Meta may train on your content.
+const ALLOWED_MODELS = (
+  process.env.META_MODELS ||
+  "muse-spark-1.3,muse-spark-1.3-contributor,muse-spark-1.2,muse-spark-1.2-contributor,muse-spark-1.1,muse-wonder-1.0"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+export function availableModels() {
+  return ALLOWED_MODELS;
+}
+
+async function chatCompletion(messages, model) {
+  const { key, base } = aiConfig();
+  const useModel = ALLOWED_MODELS.includes(model) ? model : aiConfig().model;
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, temperature: 0.3, messages, tools: TOOLS }),
+    body: JSON.stringify({ model: useModel, temperature: 0.3, messages, tools: TOOLS }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -210,7 +240,7 @@ async function chatCompletion(messages) {
 }
 
 // One chat turn: saves the user message, runs the tool loop, saves and returns the reply.
-export async function runChat(userText) {
+export async function runChat(userText, model) {
   await ChatMessage.create({ role: "user", content: userText });
   const history = await ChatMessage.find().sort({ createdAt: 1 }).limit(50);
   const messages = [
@@ -219,20 +249,26 @@ export async function runChat(userText) {
   ];
 
   const actions = [];
+  const pendingOps = []; // undo ops for this answer's checkpoint
   for (let i = 0; i < 6; i++) {
-    const msg = await chatCompletion(messages);
+    const msg = await chatCompletion(messages, model);
     if (!msg) throw new Error("Empty AI response");
     if (!msg.tool_calls || msg.tool_calls.length === 0) {
-      const reply = msg.content || "";
-      await ChatMessage.create({ role: "assistant", content: reply });
-      return { reply, actions };
+      const reply = cleanReply(msg.content || "");
+      const replyDoc = await ChatMessage.create({ role: "assistant", content: reply });
+      const checkpoint = pendingOps.length > 0;
+      if (checkpoint) await saveCheckpoint(replyDoc._id, pendingOps);
+      return { reply, actions, checkpoint, messageId: replyDoc._id };
     }
     messages.push({ role: "assistant", content: msg.content || null, tool_calls: msg.tool_calls });
     for (const call of msg.tool_calls) {
       let result;
       try {
         const args = JSON.parse(call.function.arguments || "{}");
+        const snap = await snapshotBefore(call.function.name, args);
         result = await runTool(call.function.name, args);
+        const op = opAfter(call.function.name, args, result, snap);
+        if (op) pendingOps.push(op);
         actions.push({ tool: call.function.name, args });
       } catch (err) {
         result = { error: err.message };
@@ -241,6 +277,8 @@ export async function runChat(userText) {
     }
   }
   const reply = "I ran several steps but could not finish. Please rephrase your request.";
-  await ChatMessage.create({ role: "assistant", content: reply });
-  return { reply, actions };
+  const replyDoc = await ChatMessage.create({ role: "assistant", content: reply });
+  const checkpoint = pendingOps.length > 0;
+  if (checkpoint) await saveCheckpoint(replyDoc._id, pendingOps);
+  return { reply, actions, checkpoint, messageId: replyDoc._id };
 }

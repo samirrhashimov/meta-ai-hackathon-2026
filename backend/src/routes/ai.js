@@ -2,7 +2,7 @@ import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import multer from "multer";
 import { aiEnabled, organizeFile, organizeNote, transcribeAudio } from "../services/ai.js";
-import { runChat } from "../services/chat.js";
+import { availableModels, revertCheckpoint, runChat } from "../services/chat.js";
 import { getInsights } from "../services/insights.js";
 import { ChatMessage } from "../models/ChatMessage.js";
 
@@ -28,7 +28,12 @@ router.post("/organize", async (req, res, next) => {
   }
 });
 
-// POST /api/ai/chat — { message }: chat turn with tool-calling.
+// GET /api/ai/models — chat-capable models for the Assistant picker.
+router.get("/models", (req, res) => {
+  res.json({ models: availableModels() });
+});
+
+// POST /api/ai/chat — { message, model? }: chat turn with tool-calling.
 router.post("/chat", async (req, res, next) => {
   try {
     if (!aiEnabled()) {
@@ -36,11 +41,11 @@ router.post("/chat", async (req, res, next) => {
         .status(503)
         .json({ error: "AI key is not set (backend/.env → META_API_KEY)" });
     }
-    const { message } = req.body;
+    const { message, model } = req.body;
     if (!message || !message.trim()) {
       return res.status(400).json({ error: "Message is required" });
     }
-    const result = await runChat(message.trim());
+    const result = await runChat(message.trim(), model);
     res.json(result);
   } catch (err) {
     next(err);
@@ -94,6 +99,21 @@ router.post("/transcribe", audioUpload.single("audio"), async (req, res, next) =
     const transcript = await transcribeAudio(req.file.buffer);
     res.json({ transcript });
   } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/ai/revert — { messageId }: undo that answer's note/folder changes.
+router.post("/revert", async (req, res, next) => {
+  try {
+    const { messageId } = req.body;
+    if (!messageId || !isValidObjectId(messageId)) {
+      return res.status(400).json({ error: "Invalid messageId" });
+    }
+    const result = await revertCheckpoint(messageId);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
     next(err);
   }
 });

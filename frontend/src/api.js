@@ -35,8 +35,11 @@ export const api = {
   organizeFile: (fileId) =>
     request("/api/ai/organize-file", { method: "POST", body: JSON.stringify({ fileId }) }),
 
-  chat: (message) =>
-    request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message }) }),
+  chat: (message, model) =>
+    request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message, model }) }),
+  chatModels: () => request("/api/ai/models"),
+  revert: (messageId) =>
+    request("/api/ai/revert", { method: "POST", body: JSON.stringify({ messageId }) }),
   chatHistory: () => request("/api/ai/chat"),
   clearChat: () => request("/api/ai/chat", { method: "DELETE" }),
 
