@@ -124,7 +124,7 @@ export default function AiPanel({ onChanged, variant = "panel", notes = [], fold
             <LuChevronDown size={13} />
           </button>
           {modelOpen && (
-            <div className="glass pop-in absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl p-1 text-sm">
+            <div className="pop-in absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-white/10 bg-[#0a1016]/95 p-1 text-sm shadow-xl shadow-black/50 backdrop-blur-xl">
               {models.map((m) => (
                 <button
                   key={m}

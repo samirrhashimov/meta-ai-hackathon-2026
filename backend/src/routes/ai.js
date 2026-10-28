@@ -4,6 +4,7 @@ import multer from "multer";
 import { aiEnabled, organizeFile, organizeNote, transcribeAudio } from "../services/ai.js";
 import { availableModels, revertCheckpoint, runChat } from "../services/chat.js";
 import { stashUpload } from "../services/pending.js";
+import { buildGraph } from "../services/graph.js";
 import { getInsights } from "../services/insights.js";
 import { ChatMessage } from "../models/ChatMessage.js";
 
@@ -100,6 +101,16 @@ router.post("/attachments", attachUpload.single("file"), (req, res, next) => {
       data: req.file.buffer,
     });
     res.status(201).json({ attachment });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/ai/graph[?refresh=1] — knowledge-graph nodes + links
+// (wikilink/tag/folder always fresh; AI links cached until notes change).
+router.get("/graph", async (req, res, next) => {
+  try {
+    res.json(await buildGraph({ refresh: req.query.refresh === "1" }));
   } catch (err) {
     next(err);
   }

@@ -8,7 +8,8 @@ import TagsModal from "./components/TagsModal";
 import Modal from "./components/Modal";
 import AiPanel from "./components/AiPanel";
 import Dashboard from "./components/Dashboard";
-import { LuFileText, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuX } from "react-icons/lu";
+import GraphView from "./components/GraphView";
+import { LuFileText, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuWaypoints, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
 
 function NavButton({ title, active, onClick, children, dim }) {
@@ -45,7 +46,7 @@ export default function App() {
   const [tagsOpen, setTagsOpen] = useState(false); // tags browser modal
   const [searchQ, setSearchQ] = useState("");
   const [searchAnchor, setSearchAnchor] = useState(null); // dropdown position under the button
-  const [view, setView] = useState("notes"); // notes | dashboard
+  const [view, setView] = useState("notes"); // notes | dashboard | graph
   const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 256);
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem("ui.rightW")) || 320);
   const [leftOpen, setLeftOpen] = useState(() => localStorage.getItem("ui.leftOpen") !== "false");
@@ -458,6 +459,9 @@ export default function App() {
         <NavButton title="Dashboard" active={view === "dashboard"} onClick={() => setView("dashboard")}>
           <LuLayoutDashboard size={17} />
         </NavButton>
+        <NavButton title="Knowledge graph" active={view === "graph"} onClick={() => setView("graph")}>
+          <LuWaypoints size={17} />
+        </NavButton>
         <NavButton
           title="Search notes"
           active={searchOpen}
@@ -596,6 +600,10 @@ export default function App() {
         {view === "dashboard" ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <Dashboard />
+          </div>
+        ) : view === "graph" ? (
+          <div className="min-h-0 flex-1">
+            <GraphView onOpenNote={handleSelectNote} />
           </div>
         ) : tabs.length > 0 ? (
           // Every open tab keeps its own mounted editor (hidden when inactive),

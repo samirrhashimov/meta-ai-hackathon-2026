@@ -55,6 +55,9 @@ export const api = {
 
   insights: (refresh = false) => request(`/api/ai/insights${refresh ? "?refresh=1" : ""}`),
 
+  // Knowledge-graph nodes + links (wikilink/tag/folder fresh; AI cached).
+  graph: (refresh = false) => request(`/api/ai/graph${refresh ? "?refresh=1" : ""}`),
+
   // Sends a WAV recording to Muse Voice Transcribe; resolves { transcript }.
   transcribe: async (wavBlob) => {
     const form = new FormData();
