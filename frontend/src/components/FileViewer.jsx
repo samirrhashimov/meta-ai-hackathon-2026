@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { LuFile, LuFileImage, LuFileText } from "react-icons/lu";
 import { fileContentUrl } from "../api";
 import { HyperEditor } from "./NoteEditor";
+import { currentAccent } from "../accent";
 import TagEditor from "./TagEditor";
 
 // Icon for a stored file, shared by the tree, tabs and the viewer header.
@@ -119,7 +120,7 @@ export default function FileViewer({ file, active, onSaveContent, onSaveTags, on
             disabled={!dirty}
             className={`min-w-16 shrink-0 rounded-md px-3 py-1 text-center text-sm font-medium ${
               dirty
-                ? "bg-cyan-400 text-[#06202a] hover:bg-cyan-300"
+                ? currentAccent().solid
                 : "cursor-default bg-white/5 text-neutral-600"
             }`}
           >

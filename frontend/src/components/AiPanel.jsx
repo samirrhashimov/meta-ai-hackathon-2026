@@ -4,6 +4,7 @@ import { LuCheck, LuChevronDown, LuCopy, LuFilePlus, LuFileText, LuFolder, LuFol
 import { encodeWav } from "../utils/audio";
 import { detectMention, insertTag } from "../utils/mentions";
 import { FileTypeIcon } from "./FileViewer";
+import { currentAccent } from "../accent";
 import Modal from "./Modal";
 
 // Landing suggestion cards: short label shown, full prompt goes to the box.
@@ -46,9 +47,10 @@ const FALLBACK_MODELS = [
 ];
 const DEFAULT_MODEL = "muse-spark-1.3-contributor";
 
-export default function AiPanel({ onChanged, variant = "panel", notes = [], folders = [], files = [] }) {
+export default function AiPanel({ onChanged, variant = "panel", notes = [], folders = [], files = [], defaultModel = "", showAttachments = true }) {
   const home = variant === "home";
   const panelRef = useRef(null);
+  const acc = currentAccent();
   const [narrow, setNarrow] = useState(false);
 
   // Hide the header title when the panel gets too narrow for it.
@@ -63,22 +65,28 @@ export default function AiPanel({ onChanged, variant = "panel", notes = [], fold
   }, []);
 
   const [models, setModels] = useState(FALLBACK_MODELS);
-  const [model, setModel] = useState(() => localStorage.getItem("ui.model") || DEFAULT_MODEL);
+  // Manual picks persist (ui.model); otherwise the Settings default wins.
+  const [model, setModel] = useState(
+    () => localStorage.getItem("ui.model") || defaultModel || DEFAULT_MODEL
+  );
   const [modelOpen, setModelOpen] = useState(false);
 
   // Model list comes from the backend (backend/.env → META_MODELS).
+  // A Settings custom model is offered too, even when the backend is older.
   useEffect(() => {
     api
       .chatModels()
       .then((d) => {
         const list = Array.isArray(d.models) && d.models.length > 0 ? d.models : null;
-        if (!list) return;
-        setModels(list);
-        setModel((cur) =>
-          list.includes(cur) ? cur : list.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : list[0]
-        );
+        const merged = [
+          ...new Set([...(list || FALLBACK_MODELS), ...(defaultModel ? [defaultModel] : [])]),
+        ];
+        setModels(merged);
+        setModel((cur) => (merged.includes(cur) ? cur : defaultModel || DEFAULT_MODEL));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (defaultModel) setModels((prev) => [...new Set([...prev, defaultModel])]);
+      });
   }, []);
 
   function selectModel(m) {
@@ -116,7 +124,7 @@ export default function AiPanel({ onChanged, variant = "panel", notes = [], fold
             title="Select model"
             className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs ${
               modelOpen
-                ? "bg-cyan-400/20 text-cyan-100"
+                ? `${acc.softBgStrong} ${acc.softText}`
                 : "text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
             }`}
           >
@@ -134,12 +142,12 @@ export default function AiPanel({ onChanged, variant = "panel", notes = [], fold
                   }}
                   className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left ${
                     m === model
-                      ? "bg-cyan-400/15 text-cyan-100"
+                      ? `${acc.softBgStrong} ${acc.softText}`
                       : "text-neutral-300 hover:bg-white/5"
                   }`}
                 >
                   {m === model ? (
-                    <LuCheck size={14} className="shrink-0 text-cyan-300" />
+                    <LuCheck size={14} className={`shrink-0 ${acc.text}`} />
                   ) : (
                     <span className="w-[14px] shrink-0" />
                   )}
@@ -151,7 +159,15 @@ export default function AiPanel({ onChanged, variant = "panel", notes = [], fold
         </div>
       </div>
       <div className={`flex min-h-0 flex-1 flex-col ${home ? "p-4 sm:p-6" : "p-3"}`}>
-        <Chat onChanged={onChanged} variant={variant} model={model} notes={notes} folders={folders} files={files} />
+        <Chat
+          onChanged={onChanged}
+          variant={variant}
+          model={model}
+          notes={notes}
+          folders={folders}
+          files={files}
+          showAttachments={showAttachments}
+        />
       </div>
     </div>
   );
@@ -163,13 +179,14 @@ let clearedOnce = false;
 // Attachment pill: bordered standalone above the input; borderless ("bare")
 // inside a sent bubble so it reads as one block with the message.
 function AttachChip({ a, files, onRemove, bare }) {
+  const acc = currentAccent();
   const mime = a.kind === "file" ? files.find((f) => f._id === a.id)?.mimeType : a.mime;
   return (
     <span
       className={
         bare
-          ? "flex items-center gap-1.5 rounded-lg bg-black/25 px-2.5 py-1 text-[13px] leading-5 text-cyan-100"
-          : "flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 py-1 pl-3 pr-1.5 text-[13px] leading-6 text-cyan-100"
+          ? `flex items-center gap-1.5 rounded-lg bg-black/25 px-2.5 py-1 text-[13px] leading-5 ${acc.softText}`
+          : `flex items-center gap-2 rounded-xl border ${acc.softBorder} ${acc.softBg} py-1 pl-3 pr-1.5 text-[13px] leading-6 ${acc.softText}`
       }
     >
       {a.kind === "file" || a.kind === "upload" ? (
@@ -185,7 +202,7 @@ function AttachChip({ a, files, onRemove, bare }) {
           type="button"
           onClick={onRemove}
           title="Remove attachment"
-          className="rounded-full p-1 text-cyan-300/70 hover:bg-cyan-400/20 hover:text-cyan-100"
+          className={`rounded-full p-1 ${acc.textDim} hover:bg-white/10 ${acc.softText}`}
         >
           <LuX size={14} />
         </button>
@@ -194,8 +211,9 @@ function AttachChip({ a, files, onRemove, bare }) {
   );
 }
 
-function Chat({ onChanged, variant, model, notes, folders, files }) {
+function Chat({ onChanged, variant, model, notes, folders, files, showAttachments = true }) {
   const home = variant === "home";
+  const acc = currentAccent();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -338,7 +356,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
     while ((m = re.exec(text)) !== null) {
       if (m.index > last) parts.push(<span key={k++}>{text.slice(last, m.index)}</span>);
       parts.push(
-        <span key={k++} className="text-cyan-300">
+        <span key={k++} className={currentAccent().text}>
           {m[0]}
         </span>
       );
@@ -622,9 +640,9 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
                     taRef.current?.focus();
                   }}
                   title="Click to try it"
-                  className="flex flex-col items-start gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left hover:border-cyan-400/40 hover:bg-cyan-400/10"
+                  className={`flex flex-col items-start gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left ${acc.borderHover} ${acc.softHover}`}
                 >
-                  <s.icon size={16} className="text-cyan-300" />
+                  <s.icon size={16} className={acc.text} />
                   <span className="text-xs font-medium text-neutral-100">{s.label}</span>
                   <span className="text-[11px] leading-snug text-neutral-500">{s.desc}</span>
                 </button>
@@ -641,9 +659,9 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
             </div>
           ) : m.role === "user" ? (
             <div key={m._id} className="pop-in group mb-3 flex flex-col items-end">
-              <div className="max-w-[85%] min-w-0 rounded-2xl rounded-br-md border border-cyan-300/25 bg-cyan-400/15 px-3.5 py-2 text-sm leading-relaxed text-cyan-50">
-                {m.attachments?.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-1.5 border-b border-cyan-300/15 pb-2">
+              <div className={`max-w-[85%] min-w-0 rounded-2xl rounded-br-md border ${acc.bubbleBorder} ${acc.bubbleBg} px-3.5 py-2 text-sm leading-relaxed text-neutral-50`}>
+                {showAttachments && m.attachments?.length > 0 && (
+                  <div className={`mb-2 flex flex-wrap gap-1.5 border-b ${acc.bubbleDivider} pb-2`}>
                     {m.attachments.map((a) => (
                       <AttachChip key={`${a.kind}:${a.id}`} a={a} files={files} bare />
                     ))}
@@ -663,7 +681,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
             </div>
           ) : (
             <div key={m._id} className="pop-in group mb-3 flex items-start gap-2.5">
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 text-cyan-300">
+              <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${acc.bubbleBorder} ${acc.softBg} ${acc.text}`}>
                 <LuSparkles size={13} />
               </span>
               <div className="min-w-0">
@@ -701,7 +719,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
         )}
         {sending && (
           <div className="mb-2 flex items-center gap-1.5 px-1 py-1">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 text-cyan-300">
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${acc.bubbleBorder} ${acc.softBg} ${acc.text}`}>
               <LuSparkles size={12} />
             </span>
             <span className="flex gap-1">
@@ -709,7 +727,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
                 <span
                   key={d}
                   style={{ animationDelay: `${d}ms` }}
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300/70"
+                  className={`h-1.5 w-1.5 animate-bounce rounded-full ${acc.dot}`}
                 />
               ))}
             </span>
@@ -741,7 +759,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => selectMention(c)}
-                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-neutral-200 hover:bg-cyan-400/10"
+                  className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-neutral-200 ${acc.softHover}`}
                 >
                   {c.kind === "file" ? (
                     <FileTypeIcon
@@ -810,7 +828,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
                     ? "Uploading..."
                     : "Ask Assistant... (@ to mention)"
             }
-            className={`md-chat-scroll relative block max-h-40 w-full resize-none overflow-hidden border border-white/10 bg-white/[0.03] pl-12 pr-[84px] leading-relaxed text-transparent caret-cyan-300 selection:bg-cyan-400/30 placeholder:text-neutral-600 focus:border-cyan-400/50 focus:outline-none ${
+            className={`md-chat-scroll relative block max-h-40 w-full resize-none overflow-hidden border border-white/10 bg-white/[0.03] pl-12 pr-[84px] leading-relaxed text-transparent ${acc.caret} ${acc.selection} placeholder:text-neutral-600 ${acc.focusBorder} focus:outline-none ${
               home
                 ? "rounded-[24px] py-3 text-[15px] shadow-lg shadow-black/30"
                 : "rounded-[20px] py-2.5 text-sm"
@@ -830,7 +848,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
                 {Array.from({ length: 21 }).map((_, i) => (
                   <span
                     key={i}
-                    className="mic-bar w-[3px] rounded-full bg-cyan-300/80"
+                    className={`mic-bar w-[3px] rounded-full ${acc.dot}`}
                     style={{ animationDelay: `${(i % 7) * 110}ms` }}
                   />
                 ))}
@@ -858,7 +876,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
             type="submit"
             disabled={sending || !input.trim()}
             title="Send"
-            className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-cyan-400 text-[#06202a] hover:bg-cyan-300 disabled:cursor-default disabled:opacity-40"
+            className={`absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full ${acc.solid} disabled:cursor-default disabled:opacity-40`}
           >
             <LuSend size={14} />
           </button>
@@ -887,7 +905,7 @@ function Chat({ onChanged, variant, model, notes, folders, files }) {
                 </button>
                 <button
                   onClick={confirmRevert}
-                  className="rounded-lg bg-cyan-400 px-3 py-1.5 text-sm font-medium text-[#06202a] hover:bg-cyan-300"
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium ${acc.solid}`}
                 >
                   Restore
                 </button>

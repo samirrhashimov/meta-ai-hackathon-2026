@@ -12,8 +12,21 @@ function config() {
 }
 
 // Without a key the AI counts as off — notes still save, they just don't sort.
-export function aiEnabled() {
-  return !!config().key;
+export function aiEnabled(creds) {
+  return !!((creds && creds.key) || config().key);
+}
+
+// Per-request credentials from the Settings panel. The user types their own
+// key/base/model there; empty fields fall back to the backend .env values.
+// `tagging` carries the auto-tag toggle so background jobs honor it.
+export function aiFromReq(req) {
+  const env = config();
+  return {
+    key: (req.get("x-meta-key") || "").trim() || env.key,
+    base: (req.get("x-meta-base") || "").trim() || env.base,
+    model: (req.get("x-meta-model") || "").trim() || env.model,
+    tagging: req.get("x-meta-tags") !== "off",
+  };
 }
 
 // Shared by chat.js so both use the same key/base URL/model.
@@ -26,8 +39,8 @@ const TRANSCRIBE_MODEL = process.env.MUSE_TRANSCRIBE_MODEL || "muse-voice-transc
 
 // Sends a WAV recording to Muse Voice Transcribe, returns the text.
 // Language is autodetected (supports 25 languages with code-switching).
-export async function transcribeAudio(wavBuffer) {
-  const { key, base } = config();
+export async function transcribeAudio(wavBuffer, creds) {
+  const { key, base } = creds || config();
   const form = new FormData();
   form.append(
     "request",
@@ -61,8 +74,8 @@ function extractJson(text) {
   }
 }
 
-export async function chatJson(system, user) {
-  const { key, base, model } = config();
+export async function chatJson(system, user, creds) {
+  const { key, base, model } = creds || config();
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
@@ -93,11 +106,11 @@ Rules:
 - Folder name and summary must be in the note's own language.`;
 
 // Classifies a note: picks an existing folder or suggests a new one.
-export async function classifyNote(note, folders) {
+export async function classifyNote(note, folders, creds) {
   const list = folders.map((f) => `- ${f._id}: ${f.name}`).join("\n") || "(no folders)";
   const user =
     `Folders:\n${list}\n\nTitle: ${note.title}\nContent:\n${(note.content || "").slice(0, 3000)}`;
-  const out = await chatJson(SYSTEM, user);
+  const out = await chatJson(SYSTEM, user, creds);
   // Safety: the AI may return a made-up id, so verify it.
   if (out.folderId && !folders.some((f) => String(f._id) === String(out.folderId))) {
     out.folderId = null;
@@ -108,7 +121,7 @@ export async function classifyNote(note, folders) {
 }
 
 // Files a note with AI: picks/creates a folder, writes tags and a summary.
-export async function organizeNote(noteId) {
+export async function organizeNote(noteId, creds) {
   const note = await Note.findById(noteId);
   if (!note) {
     const err = new Error("Note not found");
@@ -116,7 +129,7 @@ export async function organizeNote(noteId) {
     throw err;
   }
   const folders = await Folder.find().sort({ createdAt: 1 });
-  const result = await classifyNote(note, folders);
+  const result = await classifyNote(note, folders, creds);
 
   let folder = null;
   let created = false;
@@ -148,12 +161,13 @@ Rules:
 - describe what the item is about, not its file type`;
 
 // Suggests tags for a title + text hint. Never throws — returns [] instead.
-export async function generateTags(title, hint) {
-  if (!aiEnabled()) return [];
+export async function generateTags(title, hint, creds) {
+  if (!aiEnabled(creds)) return [];
   try {
     const out = await chatJson(
       TAG_SYSTEM,
-      `Title: ${title}\nHint:\n${(hint || "").slice(0, 2000)}`
+      `Title: ${title}\nHint:\n${(hint || "").slice(0, 2000)}`,
+      creds
     );
     if (!Array.isArray(out.tags)) return [];
     return [
@@ -176,12 +190,14 @@ function mergeTags(current, fresh) {
 
 // Fire-and-forget: enriches a note with AI tags without slowing the response.
 // Re-reads the note first so concurrent saves (e.g. organize) are not lost.
-export function tagNoteInBackground(noteId) {
-  if (!aiEnabled()) return;
+export function tagNoteInBackground(noteId, opts) {
+  if (opts && opts.tagging === false) return;
+  const creds = opts && opts.key ? opts : undefined;
+  if (!aiEnabled(creds)) return;
   (async () => {
     const note = await Note.findById(noteId);
     if (!note) return;
-    const fresh = await generateTags(note.title, note.content);
+    const fresh = await generateTags(note.title, note.content, creds);
     if (fresh.length === 0) return;
     const latest = await Note.findById(noteId);
     if (!latest) return;
@@ -200,7 +216,7 @@ Rules:
 
 // Files an upload with AI: picks/creates a folder, merges tags.
 // Text files contribute a content sample; images/pdfs are judged by name + type.
-export async function organizeFile(fileId) {
+export async function organizeFile(fileId, creds) {
   const file = await File.findById(fileId);
   if (!file) {
     const err = new Error("File not found");
@@ -213,7 +229,7 @@ export async function organizeFile(fileId) {
     hint += `\nContent:\n${file.data.toString("utf8").slice(0, 2000)}`;
   }
   const list = folders.map((f) => `- ${f._id}: ${f.name}`).join("\n") || "(no folders)";
-  const result = await chatJson(FILE_SYSTEM, `Folders:\n${list}\n\n${hint}`);
+  const result = await chatJson(FILE_SYSTEM, `Folders:\n${list}\n\n${hint}`, creds);
   // Safety: the AI may return a made-up id, so verify it.
   if (result.folderId && !folders.some((f) => String(f._id) === String(result.folderId))) {
     result.folderId = null;
@@ -245,14 +261,17 @@ export async function organizeFile(fileId) {
 }
 
 // Fire-and-forget: enriches an uploaded file with AI tags from its name.
-export function tagFileInBackground(fileId) {
-  if (!aiEnabled()) return;
+export function tagFileInBackground(fileId, opts) {
+  if (opts && opts.tagging === false) return;
+  const creds = opts && opts.key ? opts : undefined;
+  if (!aiEnabled(creds)) return;
   (async () => {
     const f = await File.findById(fileId);
     if (!f) return;
     const fresh = await generateTags(
       f.name,
-      `A ${f.mimeType || "file"} named "${f.name}" (${f.size || 0} bytes)`
+      `A ${f.mimeType || "file"} named "${f.name}" (${f.size || 0} bytes)`,
+      creds
     );
     if (fresh.length === 0) return;
     const latest = await File.findById(fileId);

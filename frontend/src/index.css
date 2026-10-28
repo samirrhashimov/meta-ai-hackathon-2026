@@ -4,10 +4,73 @@
   --accent: #22d3ee;
 }
 
+/* Editor + chrome accent (Settings → Appearance), via <html data-accent>. */
+:root,
+:root[data-accent="cyan"] {
+  --acc: #22d3ee;
+  --acc-bright: #67e8f9;
+  --acc-pale: #a5f3fc;
+  --acc-a65b: rgba(103, 232, 249, 0.65);
+  --acc-a55b: rgba(103, 232, 249, 0.55);
+  --acc-a35b: rgba(103, 232, 249, 0.35);
+  --acc-a45: rgba(34, 211, 238, 0.45);
+  --acc-a35: rgba(34, 211, 238, 0.35);
+  --acc-a25: rgba(34, 211, 238, 0.25);
+  --acc-a18: rgba(34, 211, 238, 0.18);
+  --acc-a13: rgba(34, 211, 238, 0.13);
+  --acc-a07: rgba(34, 211, 238, 0.07);
+  --acc-a04: rgba(34, 211, 238, 0.04);
+}
+:root[data-accent="emerald"] {
+  --acc: #34d399;
+  --acc-bright: #6ee7b7;
+  --acc-pale: #a7f3d0;
+  --acc-a65b: rgba(110, 231, 183, 0.65);
+  --acc-a55b: rgba(110, 231, 183, 0.55);
+  --acc-a35b: rgba(110, 231, 183, 0.35);
+  --acc-a45: rgba(52, 211, 153, 0.45);
+  --acc-a35: rgba(52, 211, 153, 0.35);
+  --acc-a25: rgba(52, 211, 153, 0.25);
+  --acc-a18: rgba(52, 211, 153, 0.18);
+  --acc-a13: rgba(52, 211, 153, 0.13);
+  --acc-a07: rgba(52, 211, 153, 0.07);
+  --acc-a04: rgba(52, 211, 153, 0.04);
+}
+:root[data-accent="amber"] {
+  --acc: #fbbf24;
+  --acc-bright: #fcd34d;
+  --acc-pale: #fde68a;
+  --acc-a65b: rgba(252, 211, 77, 0.65);
+  --acc-a55b: rgba(252, 211, 77, 0.55);
+  --acc-a35b: rgba(252, 211, 77, 0.35);
+  --acc-a45: rgba(251, 191, 36, 0.45);
+  --acc-a35: rgba(251, 191, 36, 0.35);
+  --acc-a25: rgba(251, 191, 36, 0.25);
+  --acc-a18: rgba(251, 191, 36, 0.18);
+  --acc-a13: rgba(251, 191, 36, 0.13);
+  --acc-a07: rgba(251, 191, 36, 0.07);
+  --acc-a04: rgba(251, 191, 36, 0.04);
+}
+:root[data-accent="rose"] {
+  --acc: #fb7185;
+  --acc-bright: #fda4af;
+  --acc-pale: #fecdd3;
+  --acc-a65b: rgba(253, 164, 175, 0.65);
+  --acc-a55b: rgba(253, 164, 175, 0.55);
+  --acc-a35b: rgba(253, 164, 175, 0.35);
+  --acc-a45: rgba(251, 113, 133, 0.45);
+  --acc-a35: rgba(251, 113, 133, 0.35);
+  --acc-a25: rgba(251, 113, 133, 0.25);
+  --acc-a18: rgba(251, 113, 133, 0.18);
+  --acc-a13: rgba(251, 113, 133, 0.13);
+  --acc-a07: rgba(251, 113, 133, 0.07);
+  --acc-a04: rgba(251, 113, 133, 0.04);
+}
+
 body {
   background:
-    radial-gradient(900px 520px at 12% -10%, rgba(34, 211, 238, 0.13), transparent 60%),
-    radial-gradient(760px 520px at 92% 112%, rgba(34, 211, 238, 0.07), transparent 60%),
+    radial-gradient(900px 520px at 12% -10%, var(--acc-a13), transparent 60%),
+    radial-gradient(760px 520px at 92% 112%, var(--acc-a07), transparent 60%),
     #06090d;
   background-attachment: fixed;
   color: #e4e4e7;
@@ -16,7 +79,7 @@ body {
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.35);
+  background: var(--acc-a35);
 }
 
 /* Glassmorphism surface: translucent, blurred, thin bright edge. */
@@ -134,17 +197,43 @@ button:active {
   transform: scale(0.97);
 }
 
+/* Custom-styled range bars (color picker hue + RGB channels). */
+.rgb-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+.rgb-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.rgb-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
 /* Slim scrollbars with a cyan hint */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(34, 211, 238, 0.25);
+  background: var(--acc-a25);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(34, 211, 238, 0.45);
+  background: var(--acc-a45);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -163,11 +252,11 @@ button:active {
   padding: 0 4px;
 }
 .md-hypermd.md-hypermd .CodeMirror-cursor {
-  border-left-color: #22d3ee;
+  border-left-color: var(--acc);
 }
 .md-hypermd.md-hypermd .CodeMirror-selected,
 .md-hypermd.md-hypermd .CodeMirror-focused .CodeMirror-selected {
-  background: rgba(34, 211, 238, 0.18);
+  background: var(--acc-a18);
 }
 .md-hypermd.md-hypermd .CodeMirror-gutters {
   background-color: transparent;
@@ -217,6 +306,52 @@ button:active {
   font-size: 0.9rem;
   font-weight: 600;
 }
+/* Editor font size (Settings → Appearance), via <html data-font>. */
+[data-font="s"] .md-hypermd.md-hypermd .CodeMirror {
+  font-size: 13px;
+}
+[data-font="m"] .md-hypermd.md-hypermd .CodeMirror {
+  font-size: 15px;
+}
+[data-font="l"] .md-hypermd.md-hypermd .CodeMirror {
+  font-size: 17px;
+}
+[data-font="s"] .md-hypermd.md-hypermd pre.HyperMD-header-1 {
+  font-size: 1.5rem;
+}
+[data-font="s"] .md-hypermd.md-hypermd pre.HyperMD-header-2 {
+  font-size: 1.3rem;
+}
+[data-font="s"] .md-hypermd.md-hypermd pre.HyperMD-header-3 {
+  font-size: 1.12rem;
+}
+[data-font="s"] .md-hypermd.md-hypermd pre.HyperMD-header-4 {
+  font-size: 1rem;
+}
+[data-font="s"] .md-hypermd.md-hypermd pre.HyperMD-header-5 {
+  font-size: 0.92rem;
+}
+[data-font="s"] .md-hypermd.md-hypermd pre.HyperMD-header-6 {
+  font-size: 0.84rem;
+}
+[data-font="l"] .md-hypermd.md-hypermd pre.HyperMD-header-1 {
+  font-size: 1.95rem;
+}
+[data-font="l"] .md-hypermd.md-hypermd pre.HyperMD-header-2 {
+  font-size: 1.65rem;
+}
+[data-font="l"] .md-hypermd.md-hypermd pre.HyperMD-header-3 {
+  font-size: 1.42rem;
+}
+[data-font="l"] .md-hypermd.md-hypermd pre.HyperMD-header-4 {
+  font-size: 1.25rem;
+}
+[data-font="l"] .md-hypermd.md-hypermd pre.HyperMD-header-5 {
+  font-size: 1.12rem;
+}
+[data-font="l"] .md-hypermd.md-hypermd pre.HyperMD-header-6 {
+  font-size: 1rem;
+}
 /* Bold / italic / strikethrough. */
 .md-hypermd.md-hypermd span.cm-strong {
   font-weight: 700;
@@ -251,7 +386,7 @@ button:active {
   cursor: pointer;
 }
 .md-hypermd.md-hypermd span.cm-formatting-wikilink {
-  color: rgba(103, 232, 249, 0.55);
+  color: var(--acc-a55b);
 }
 .md-hypermd.md-hypermd pre.hmd-inactive-line span.cm-formatting-wikilink {
   display: inline;
@@ -259,9 +394,9 @@ button:active {
   letter-spacing: -1ch;
   color: transparent;
 }
-/* Bare URLs: clickable cyan links. */
+/* Bare URLs: clickable accent links. */
 .md-hypermd.md-hypermd span.cm-url {
-  color: #67e8f9;
+  color: var(--acc-bright);
   cursor: pointer;
 }
 .md-hypermd.md-hypermd span.cm-url:hover {
@@ -282,8 +417,8 @@ button:active {
   vertical-align: middle;
 }
 .md-hypermd .hmd-linkcard:hover {
-  border-color: rgba(34, 211, 238, 0.4);
-  background: rgba(34, 211, 238, 0.07);
+  border-color: var(--acc-a45);
+  background: var(--acc-a07);
 }
 .md-hypermd .hmd-linkcard-favicon {
   width: 22px;
@@ -306,13 +441,13 @@ button:active {
   text-overflow: ellipsis;
 }
 .md-hypermd .hmd-linkcard-domain {
-  color: #67e8f9;
+  color: var(--acc-bright);
   font-size: 0.78em;
 }
 /* Blockquote: left bar, ">" hidden off-line. */
 .md-hypermd.md-hypermd pre.HyperMD-quote {
-  border-left: 2px solid rgba(103, 232, 249, 0.35);
-  background: rgba(34, 211, 238, 0.04);
+  border-left: 2px solid var(--acc-a35b);
+  background: var(--acc-a04);
 }
 .md-hypermd.md-hypermd pre.hmd-inactive-line span.cm-formatting-quote {
   font-size: 0 !important;
@@ -321,7 +456,7 @@ button:active {
 .md-hypermd.md-hypermd span.cm-inline-code {
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.09);
-  color: #a5f3fc;
+  color: var(--acc-pale);
   border-radius: 4px;
   padding: 0 3px;
 }
@@ -372,13 +507,13 @@ button:active {
   transform: translate(-50%, -50%);
   width: 0.95em;
   height: 0.95em;
-  border: 1.5px solid rgba(103, 232, 249, 0.65);
+  border: 1.5px solid var(--acc-a65b);
   border-radius: 4px;
-  background: rgba(34, 211, 238, 0.07);
+  background: var(--acc-a07);
 }
 .md-hypermd.md-hypermd span.cm-formatting-task.cm-property::before {
-  border-color: #22d3ee;
-  background-color: #22d3ee;
+  border-color: var(--acc);
+  background-color: var(--acc);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3.2 3.2L12.5 5' fill='none' stroke='%2306202a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-size: 70%;
   background-position: center;

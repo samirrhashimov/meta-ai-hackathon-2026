@@ -8,6 +8,7 @@ import notesRouter from "./routes/notes.js";
 import uploadRouter from "./routes/upload.js";
 import filesRouter from "./routes/files.js";
 import aiRouter from "./routes/ai.js";
+import resetRouter from "./routes/reset.js";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use("/api/notes", notesRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/ai", aiRouter);
+app.use("/api/reset", resetRouter);
 
 // Uploaded files: GET /uploads/<file>
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));

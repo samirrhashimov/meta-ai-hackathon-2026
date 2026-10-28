@@ -1,10 +1,13 @@
 // The only place that talks to the backend. Address: VITE_API_URL (or localhost:5000).
+import { aiHeaders } from "./settings";
+
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 async function request(path, options = {}) {
+  const extra = path.startsWith("/api/ai") ? aiHeaders() : {};
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: { "Content-Type": "application/json", ...extra, ...(options.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Request failed");
@@ -38,6 +41,8 @@ export const api = {
   chat: (message, model, attachments) =>
     request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message, model, attachments }) }),
   chatModels: () => request("/api/ai/models"),
+  testKey: () => request("/api/ai/test", { method: "POST" }),
+  resetData: () => request("/api/reset", { method: "DELETE" }),
   revert: (messageId) =>
     request("/api/ai/revert", { method: "POST", body: JSON.stringify({ messageId }) }),
 
@@ -45,7 +50,11 @@ export const api = {
   attachUpload: async (file) => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${API_BASE}/api/ai/attachments`, { method: "POST", body: form });
+    const res = await fetch(`${API_BASE}/api/ai/attachments`, {
+      method: "POST",
+      headers: aiHeaders(),
+      body: form,
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Upload failed");
     return data.attachment;
@@ -62,7 +71,11 @@ export const api = {
   transcribe: async (wavBlob) => {
     const form = new FormData();
     form.append("audio", wavBlob, "recording.wav");
-    const res = await fetch(`${API_BASE}/api/ai/transcribe`, { method: "POST", body: form });
+    const res = await fetch(`${API_BASE}/api/ai/transcribe`, {
+      method: "POST",
+      headers: aiHeaders(),
+      body: form,
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Transcription failed");
     return data;

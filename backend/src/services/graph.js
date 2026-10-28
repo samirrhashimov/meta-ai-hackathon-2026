@@ -9,7 +9,7 @@ import { aiEnabled, chatJson } from "./ai.js";
 // - "wikilink": explicit [[Note Title]] references
 // - "tag": notes sharing at least one tag
 // - "ai": model-suggested topical links (cached until notes change)
-export async function buildGraph({ refresh = false } = {}) {
+export async function buildGraph({ refresh = false } = {}, creds) {
   const [notes, folders] = await Promise.all([Note.find().lean(), Folder.find().lean()]);
 
   const fid = (v) => (v ? String(v._id || v) : null);
@@ -87,11 +87,11 @@ export async function buildGraph({ refresh = false } = {}) {
     const cached = await Insight.findOne({ key: "graph-ai-links" }).lean();
     if (cached?.data?.stamp === stamp && Array.isArray(cached.data.links)) {
       aiLinks = cached.data.links;
-    } else if (aiEnabled() && notes.length > 1) {
+    } else if (aiEnabled(creds) && notes.length > 1) {
       // Never block the graph on the model: serve stale (or empty) AI links
       // now and refresh the cache in the background for the next open.
       if (Array.isArray(cached?.data?.links)) aiLinks = cached.data.links;
-      refreshAiLinks(notes, stamp).catch(() => {});
+      refreshAiLinks(notes, stamp, creds).catch(() => {});
     }
   } catch {
     aiLinks = [];
@@ -103,11 +103,11 @@ export async function buildGraph({ refresh = false } = {}) {
 
 // One background regeneration at a time; failures retry on the next open.
 let aiRefreshing = false;
-async function refreshAiLinks(notes, stamp) {
+async function refreshAiLinks(notes, stamp, creds) {
   if (aiRefreshing) return;
   aiRefreshing = true;
   try {
-    const links = await suggestLinks(notes.slice(0, 60));
+    const links = await suggestLinks(notes.slice(0, 60), creds);
     await Insight.findOneAndUpdate(
       { key: "graph-ai-links" },
       { key: "graph-ai-links", data: { stamp, links }, generatedAt: new Date() },
@@ -125,14 +125,14 @@ Rules:
 - Use the exact titles given. At most 25 links, strongest first.
 - No links when nothing is related: { "links": [] }.`;
 
-async function suggestLinks(notes) {
+async function suggestLinks(notes, creds) {
   const list = notes
     .map(
       (n, i) =>
         `${i + 1}. "${n.title}" [tags: ${(n.tags || []).join(", ") || "none"}] ${(n.content || "").slice(0, 150).replace(/\s+/g, " ")}`
     )
     .join("\n");
-  const out = await chatJson(LINK_SYSTEM, `Notes:\n${list}`);
+  const out = await chatJson(LINK_SYSTEM, `Notes:\n${list}`, creds);
   const byTitle = new Map();
   for (const n of notes) byTitle.set((n.title || "").trim().toLowerCase(), String(n._id));
   const links = [];

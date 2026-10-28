@@ -39,7 +39,10 @@ export default function Resizer({ onResize, onDragStart, onDragEnd }) {
       title="Drag to resize"
       style={{ touchAction: "none" }}
     >
-      <div className="w-px bg-white/10 transition-colors group-hover:bg-cyan-400/70 group-active:bg-cyan-400" />
+      <div
+        className="w-px bg-white/10 transition-colors group-hover:bg-[var(--acc)] group-active:bg-[var(--acc-bright)]"
+        style={{ opacity: 0.7 }}
+      />
     </div>
   );
 }

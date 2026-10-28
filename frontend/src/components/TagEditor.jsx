@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { LuX } from "react-icons/lu";
+import { currentAccent } from "../accent";
 
 // Compact tag chips with an inline add field. Tags are stored plain
 // (no "#"); the chip renders the Obsidian-style "#" prefix.
 export default function TagEditor({ tags, onChange }) {
+  const acc = currentAccent();
   const [value, setValue] = useState("");
 
   function add(raw) {
@@ -23,13 +25,13 @@ export default function TagEditor({ tags, onChange }) {
       {tags.map((t) => (
         <span
           key={t}
-          className="flex items-center gap-1 rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-0.5 text-xs text-cyan-100"
+          className={`flex items-center gap-1 rounded-full border ${acc.softBorder} ${acc.softBg} px-2 py-0.5 text-xs ${acc.softText}`}
         >
           #{t}
           <button
             onClick={() => onChange(tags.filter((x) => x !== t))}
             title={`Remove tag ${t}`}
-            className="text-cyan-300/70 hover:text-cyan-100"
+            className={`${acc.textDim} ${acc.softTextHover}`}
           >
             <LuX size={12} />
           </button>

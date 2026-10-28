@@ -27,6 +27,7 @@ import {
   LuWandSparkles,
 } from "react-icons/lu";
 import { fileContentUrl } from "../api";
+import { currentAccent } from "../accent";
 import { FileTypeIcon } from "./FileViewer";
 import Modal from "./Modal";
 
@@ -94,6 +95,7 @@ export default function Sidebar({
 }) {
   const fileInputRef = useRef(null);
   const rootRef = useRef(null);
+  const acc = currentAccent();
   const menuRef = useRef(null); // open parent menu, for cascading submenu position
   const [compact, setCompact] = useState(false); // narrow panel: hamburger instead of buttons
   const [menu, setMenu] = useState(null); // { x, y, items }
@@ -408,7 +410,7 @@ export default function Sidebar({
           ? `Sorting ${sorting.done}/${sorting.total}...`
           : `Smart Sort${totalUnfiled > 0 ? ` (${totalUnfiled} unfiled)` : ""}`
       }
-      className={`flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400 text-[#06202a] hover:bg-cyan-300 disabled:cursor-default ${
+      className={`flex h-7 w-7 items-center justify-center rounded-lg ${acc.solid} disabled:cursor-default ${
         sorting ? "" : "disabled:opacity-40"
       }`}
     >
@@ -471,7 +473,7 @@ export default function Sidebar({
           </div>
         {sorting && (
           <div
-            className="absolute bottom-0 left-0 h-0.5 bg-cyan-300 transition-[width] duration-300 ease-out"
+            className={`absolute bottom-0 left-0 h-0.5 ${acc.progress} transition-[width] duration-300 ease-out`}
             style={{
               width: `${sorting.total > 0 ? (sorting.done / sorting.total) * 100 : 0}%`,
             }}
@@ -521,8 +523,8 @@ export default function Sidebar({
                 item.danger
                   ? "text-red-300 hover:bg-red-400/10"
                   : item.active
-                    ? "bg-cyan-400/15 text-cyan-100"
-                    : "text-neutral-200 hover:bg-cyan-400/10"
+                    ? `${acc.softBgStrong} ${acc.softText}`
+                    : `text-neutral-200 ${acc.softHover}`
               }`}
             >
               {item.icon && (
@@ -562,8 +564,8 @@ export default function Sidebar({
                 item.danger
                   ? "text-red-300 hover:bg-red-400/10"
                   : item.active
-                    ? "bg-cyan-400/15 text-cyan-100"
-                    : "text-neutral-200 hover:bg-cyan-400/10"
+                    ? `${acc.softBgStrong} ${acc.softText}`
+                    : `text-neutral-200 ${acc.softHover}`
               }`}
             >
               {item.icon && (
@@ -625,7 +627,7 @@ export default function Sidebar({
                 <div className="mt-4 flex justify-end">
                   <button
                     onClick={close}
-                    className="rounded-lg bg-cyan-400 px-4 py-1.5 text-sm font-medium text-[#06202a] hover:bg-cyan-300"
+                    className={`rounded-lg px-4 py-1.5 text-sm font-medium ${acc.solid}`}
                   >
                     Close
                   </button>
@@ -724,6 +726,7 @@ function FolderNode({
   onFolderDrop,
 }) {
   const [open, setOpen] = useState(true);
+  const acc = currentAccent();
 
   // Expand/collapse-all buttons.
   useEffect(() => {
@@ -756,7 +759,7 @@ function FolderNode({
         }}
         onContextMenu={(e) => onFolderMenu(e, folder)}
         className={`flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/5 ${
-          String(dragOver) === String(folder._id) ? "bg-cyan-400/10 ring-1 ring-inset ring-cyan-400/40" : ""
+          String(dragOver) === String(folder._id) ? `${acc.softBg} ring-1 ring-inset ${acc.ring}` : ""
         }`}
         style={{ paddingLeft: `${8 + depth * 12}px` }}
       >
@@ -835,6 +838,7 @@ function FolderNode({
 }
 
 function NoteRow({ note, selected, onSelect, onMenu, renaming, onRenameStart, onRenameSubmit, onRenameCancel, onDragStart, revealN }) {
+  const acc = currentAccent();
   const isRenaming = renaming?.kind === "note" && renaming.id === note._id;
   const rowRef = useRef(null);
 
@@ -864,7 +868,7 @@ function NoteRow({ note, selected, onSelect, onMenu, renaming, onRenameStart, on
       onDoubleClick={() => onRenameStart("note", note._id)}
       onContextMenu={(e) => onMenu(e, note)}
       className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm ${
-        selected ? "bg-cyan-400/15 text-cyan-100" : "text-neutral-400 hover:bg-white/5"
+        selected ? `${acc.softBgStrong} ${acc.softText}` : "text-neutral-400 hover:bg-white/5"
       }`}
     >
       <LuFileText size={14} className="shrink-0 text-neutral-500" />
@@ -874,6 +878,7 @@ function NoteRow({ note, selected, onSelect, onMenu, renaming, onRenameStart, on
 }
 
 function FileRow({ file, selected, onSelect, onMenu, renaming, onRenameStart, onRenameSubmit, onRenameCancel, onDragStart, revealN }) {
+  const acc = currentAccent();
   const isRenaming = renaming?.kind === "file" && renaming.id === file._id;
   const rowRef = useRef(null);
 
@@ -903,7 +908,7 @@ function FileRow({ file, selected, onSelect, onMenu, renaming, onRenameStart, on
       onDoubleClick={() => onRenameStart("file", file._id)}
       onContextMenu={(e) => onMenu(e, file)}
       className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm ${
-        selected ? "bg-cyan-400/15 text-cyan-100" : "text-neutral-400 hover:bg-white/5"
+        selected ? `${acc.softBgStrong} ${acc.softText}` : "text-neutral-400 hover:bg-white/5"
       }`}
     >
       <FileTypeIcon mime={file.mimeType} />
@@ -914,6 +919,7 @@ function FileRow({ file, selected, onSelect, onMenu, renaming, onRenameStart, on
 
 // Inline rename field: text selected on focus, Enter or clicking away commits, Escape cancels.
 function RenameInput({ initial, onSubmit, onCancel }) {
+  const acc = currentAccent();
   const [value, setValue] = useState(initial);
   const alive = useRef(true);
   useEffect(() => {
@@ -948,7 +954,7 @@ function RenameInput({ initial, onSubmit, onCancel }) {
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.stopPropagation()}
-      className="w-full min-w-0 rounded-md border border-cyan-400/50 bg-white/[0.05] px-2 py-0.5 text-sm text-neutral-100 focus:outline-none"
+      className={`w-full min-w-0 rounded-md border ${acc.softBorder} bg-white/[0.05] px-2 py-0.5 text-sm text-neutral-100 focus:outline-none`}
     />
   );
 }

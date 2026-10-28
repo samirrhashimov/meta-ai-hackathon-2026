@@ -191,7 +191,7 @@ function brief(note) {
 }
 
 // Runs one tool call and returns a JSON-able result.
-async function runTool(name, args) {
+async function runTool(name, args, creds) {
   switch (name) {
     case "listFolders": {
       const folders = await Folder.find().sort({ createdAt: 1 });
@@ -318,7 +318,7 @@ async function runTool(name, args) {
           folderId,
           tags: [],
         });
-        tagNoteInBackground(note._id);
+        tagNoteInBackground(note._id, creds);
         return { _id: note._id, kind: "note", name: note.title, folderId };
       }
       const file = await File.create({
@@ -329,7 +329,7 @@ async function runTool(name, args) {
         data: up.data,
         tags: [],
       });
-      tagFileInBackground(file._id);
+      tagFileInBackground(file._id, creds);
       return { _id: file._id, kind: "file", name: file.name, folderId };
     }
     default:
@@ -370,9 +370,13 @@ export function availableModels() {
   return ALLOWED_MODELS;
 }
 
-async function chatCompletion(messages, model) {
-  const { key, base } = aiConfig();
-  const useModel = ALLOWED_MODELS.includes(model) ? model : aiConfig().model;
+async function chatCompletion(messages, model, creds) {
+  const env = aiConfig();
+  const { key = env.key, base = env.base } = creds || {};
+  // A custom Settings key may serve models outside the backend allowlist.
+  const customKey = key && key !== env.key;
+  const fallback = (creds && creds.model) || env.model;
+  const useModel = customKey || ALLOWED_MODELS.includes(model) ? model : fallback;
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
@@ -388,7 +392,7 @@ async function chatCompletion(messages, model) {
 
 // One chat turn: saves the user message, runs the tool loop, saves and returns the reply.
 // attachments: [{ kind: "note"|"folder"|"file", id }] referenced with @ or +.
-export async function runChat(userText, model, attachments = []) {
+export async function runChat(userText, model, attachments = [], creds) {
   const attachLines = [];
   for (const a of attachments || []) {
     try {
@@ -437,7 +441,7 @@ export async function runChat(userText, model, attachments = []) {
   const actions = [];
   const pendingOps = []; // undo ops for this answer's checkpoint
   for (let i = 0; i < 6; i++) {
-    const msg = await chatCompletion(messages, model);
+    const msg = await chatCompletion(messages, model, creds);
     if (!msg) throw new Error("Empty AI response");
     if (!msg.tool_calls || msg.tool_calls.length === 0) {
       const reply = cleanReply(msg.content || "");
@@ -452,7 +456,7 @@ export async function runChat(userText, model, attachments = []) {
       try {
         const args = JSON.parse(call.function.arguments || "{}");
         const snap = await snapshotBefore(call.function.name, args);
-        result = await runTool(call.function.name, args);
+        result = await runTool(call.function.name, args, creds);
         const op = opAfter(call.function.name, args, result, snap);
         if (op) pendingOps.push(op);
         actions.push({ tool: call.function.name, args });

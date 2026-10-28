@@ -9,17 +9,21 @@ import Modal from "./components/Modal";
 import AiPanel from "./components/AiPanel";
 import Dashboard from "./components/Dashboard";
 import GraphView from "./components/GraphView";
+import SettingsModal from "./components/SettingsModal";
+import { loadSettings, saveSettings } from "./settings";
 import { LuFileText, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuWaypoints, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
+import { applyAccentVars, currentAccent } from "./accent";
 
 function NavButton({ title, active, onClick, children, dim }) {
+  const acc = currentAccent();
   return (
     <button
       title={title}
       onClick={onClick}
       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
         active
-          ? "bg-cyan-400/20 text-cyan-200"
+          ? `${acc.softBgStrong} ${acc.softText}`
           : dim
             ? "cursor-default text-neutral-600"
             : "text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
@@ -47,6 +51,23 @@ export default function App() {
   const [searchQ, setSearchQ] = useState("");
   const [searchAnchor, setSearchAnchor] = useState(null); // dropdown position under the button
   const [view, setView] = useState("notes"); // notes | dashboard | graph
+  const [settings, setSettingsState] = useState(loadSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const acc = currentAccent();
+
+  // Synchronous write: the live cache is fresh before the next render,
+  // so accent/font changes paint immediately (no one-step lag).
+  function setSettings(next) {
+    saveSettings(next);
+    setSettingsState(next);
+  }
+
+  // Persist settings + expose font/accent to CSS.
+  useEffect(() => {
+    saveSettings(settings);
+    applyAccentVars(settings.accent || "cyan");
+    document.documentElement.dataset.font = settings.editorFont || "m";
+  }, [settings]);
   const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 256);
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem("ui.rightW")) || 320);
   const [leftOpen, setLeftOpen] = useState(() => localStorage.getItem("ui.leftOpen") !== "false");
@@ -232,10 +253,16 @@ export default function App() {
 
   function handleNewNote(folderId = null) {
     run(async () => {
-      const note = await api.createNote({ title: "New Note", folderId });
+      // New unfiled notes are AI-sorted on creation when auto-sort is on.
+      const note = await api.createNote({
+        title: "New Note",
+        folderId,
+        autoSort: !folderId && settings.autoSort,
+      });
       setNotes((prev) => [note, ...prev]);
       openTab(note._id);
       setRenaming({ kind: "note", id: note._id });
+      if (!folderId && settings.autoSort) refresh();
     });
   }
 
@@ -313,6 +340,14 @@ export default function App() {
     return run(async () => {
       const updated = await api.updateNote(id, payload);
       setNotes((prev) => prev.map((n) => (n._id === id ? updated : n)));
+      // Auto-sort: an unfiled note is filed by AI right after a manual save.
+      const folderId = updated.folderId?._id || updated.folderId || null;
+      if (settings.autoSort && !folderId) {
+        api
+          .organize(id)
+          .then(() => refresh())
+          .catch(() => {});
+      }
     });
   }
 
@@ -480,7 +515,7 @@ export default function App() {
         <NavButton title="Browse tags" active={tagsOpen} onClick={() => setTagsOpen((v) => !v)}>
           <LuTag size={17} />
         </NavButton>
-        <NavButton title="Settings (coming soon)" dim>
+        <NavButton title="Settings" active={settingsOpen} onClick={() => setSettingsOpen(true)}>
           <LuSettings size={17} />
         </NavButton>
         <div className="mx-1 h-5 w-px shrink-0 bg-white/10" />
@@ -504,7 +539,7 @@ export default function App() {
                   setView("notes");
                 }}
                 className={`group flex max-w-44 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm ${
-                  active ? "bg-cyan-400/15 text-cyan-100" : "text-neutral-400 hover:bg-white/5"
+                  active ? `${acc.softBgStrong} ${acc.softText}` : "text-neutral-400 hover:bg-white/5"
                 } ${preview ? "italic" : ""}`}
               >
                 {fileTab ? (
@@ -522,7 +557,7 @@ export default function App() {
                     title="Unsaved changes — click to close"
                     className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-white/10"
                   >
-                    <span className="h-2 w-2 rounded-full bg-cyan-300" />
+                    <span className={`h-2 w-2 rounded-full ${acc.progress}`} />
                   </button>
                 ) : (
                   <button
@@ -643,7 +678,15 @@ export default function App() {
           })
         ) : (
           <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-            <AiPanel onChanged={() => run(refresh)} variant="home" notes={notes} folders={folders} files={files} />
+            <AiPanel
+              onChanged={() => run(refresh)}
+              variant="home"
+              notes={notes}
+              folders={folders}
+              files={files}
+              defaultModel={settings.defaultModel}
+              showAttachments={settings.showChatAttachments}
+            />
           </div>
         )}
       </main>
@@ -666,7 +709,14 @@ export default function App() {
           aria-hidden={!rightOpen}
         >
           <div className="h-full" style={{ width: rightW }}>
-            <AiPanel onChanged={() => run(refresh)} notes={notes} folders={folders} files={files} />
+            <AiPanel
+              onChanged={() => run(refresh)}
+              notes={notes}
+              folders={folders}
+              files={files}
+              defaultModel={settings.defaultModel}
+              showAttachments={settings.showChatAttachments}
+            />
           </div>
         </aside>
         </>
@@ -691,7 +741,7 @@ export default function App() {
                   if (e.key === "Escape") setSearchOpen(false);
                 }}
                 placeholder="Search notes..."
-                className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus:border-cyan-400/50 focus:outline-none"
+                className={`w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 ${acc.focusBorder} focus:outline-none`}
               />
               <div className="mt-1 max-h-64 overflow-y-auto">
                 {!sq ? (
@@ -709,7 +759,7 @@ export default function App() {
                         setSearchOpen(false);
                         setSearchQ("");
                       }}
-                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 hover:bg-cyan-400/10"
+                      className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 ${acc.softHover}`}
                     >
                       <LuFileText size={14} className="shrink-0 text-neutral-500" />
                       <span className="truncate">{n.title}</span>
@@ -736,6 +786,22 @@ export default function App() {
             openFileTab(id);
           }}
           onClose={() => setTagsOpen(false)}
+        />
+      )}
+
+      {/* Settings */}
+      {settingsOpen && (
+        <SettingsModal
+          settings={settings}
+          onChange={setSettings}
+          onClose={() => setSettingsOpen(false)}
+          notes={notes}
+          folders={folders}
+          files={files}
+          onDataChanged={() => {
+            setSettingsOpen(false);
+            refresh();
+          }}
         />
       )}
 

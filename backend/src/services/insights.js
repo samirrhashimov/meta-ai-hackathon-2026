@@ -68,7 +68,7 @@ const DIGEST_SYSTEM = `You analyze a user's notes and return ONLY JSON, no other
 Base topics strictly on the given notes; noteCount is your best estimate per topic.`;
 
 // Asks the AI for an overview of all notes.
-async function generateDigest() {
+async function generateDigest(creds) {
   const notes = await Note.find().sort({ updatedAt: -1 }).limit(50);
   if (notes.length === 0) {
     return { overview: "No notes yet.", topics: [], suggestions: ["Create your first note."] };
@@ -76,13 +76,13 @@ async function generateDigest() {
   const list = notes
     .map((n) => `- ${n.title}: ${(n.aiSummary || n.content || "").slice(0, 200)}`)
     .join("\n");
-  return chatJson(DIGEST_SYSTEM, `Notes:\n${list}`);
+  return chatJson(DIGEST_SYSTEM, `Notes:\n${list}`, creds);
 }
 
 // Full dashboard payload: fresh stats + cached (or fresh) AI digest.
-export async function getInsights({ refresh = false } = {}) {
+export async function getInsights({ refresh = false } = {}, creds) {
   const stats = await computeStats();
-  if (!aiEnabled()) {
+  if (!aiEnabled(creds)) {
     const cached = await Insight.findOne({ key: DIGEST_KEY });
     return {
       stats,
@@ -94,7 +94,7 @@ export async function getInsights({ refresh = false } = {}) {
   let record = await Insight.findOne({ key: DIGEST_KEY });
   const fresh = record && Date.now() - new Date(record.generatedAt).getTime() < DIGEST_TTL_MS;
   if (!record || !fresh || refresh) {
-    const data = await generateDigest();
+    const data = await generateDigest(creds);
     record = await Insight.findOneAndUpdate(
       { key: DIGEST_KEY },
       { data, generatedAt: new Date() },

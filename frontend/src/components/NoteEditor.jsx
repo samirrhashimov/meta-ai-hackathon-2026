@@ -17,6 +17,7 @@ import "hypermd/powerpack/fold-math-with-katex";
 // Mermaid is bundled (no <script> tag, no global timing issues).
 import mermaid from "mermaid";
 import TagEditor from "./TagEditor";
+import { currentAccent } from "../accent";
 
 mermaid.initialize({ startOnLoad: false, theme: "dark" });
 
@@ -269,7 +270,7 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
           disabled={!dirty}
           className={`min-w-16 rounded-md px-3 py-1 text-center text-sm font-medium ${
             dirty
-              ? "bg-cyan-400 text-[#06202a] hover:bg-cyan-300"
+              ? currentAccent().solid
               : "cursor-default bg-white/5 text-neutral-600"
           }`}
         >

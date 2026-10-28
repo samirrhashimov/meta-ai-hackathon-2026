@@ -7,9 +7,10 @@ import {
   LuSearch,
 } from "react-icons/lu";
 import { api } from "../api";
+import { accentHexes, currentAccent } from "../accent";
+import { loadSettings } from "../settings";
 
 const LINK_STYLE = {
-  wikilink: { color: "rgba(34,211,238,0.55)", width: 1.2, dash: [] },
   ai: { color: "rgba(251,191,36,0.7)", width: 1.2, dash: [5, 4] },
   tag: { color: "rgba(228,228,231,0.16)", width: 1, dash: [] },
   folder: { color: "rgba(228,228,231,0.08)", width: 1, dash: [] },
@@ -38,6 +39,7 @@ export default function GraphView({ onOpenNote }) {
   const [query, setQuery] = useState("");
   const matchIdx = useRef(-1); // cycles through search matches on Enter
   const [show, setShow] = useState({ folders: true, wikilink: true, tag: true, ai: true, folder: true });
+  const acc = currentAccent();
 
   // The graph builds itself on open like Obsidian: wikilink/tag/structure
   // links are computed fresh, AI links generate server-side on first view
@@ -219,8 +221,12 @@ export default function GraphView({ onOpenNote }) {
       ctx.translate(w / 2 + cam.x, h / 2 + cam.y);
       ctx.scale(cam.k, cam.k);
 
+      const hx = accentHexes(loadSettings().accent);
       for (const l of links) {
-        const s = LINK_STYLE[l.type] || LINK_STYLE.tag;
+        const s =
+          l.type === "wikilink"
+            ? { color: hx.dim, width: 1.2, dash: [] }
+            : LINK_STYLE[l.type] || LINK_STYLE.tag;
         ctx.strokeStyle = s.color;
         ctx.globalAlpha = near ? (near.has(l.a.id) && near.has(l.b.id) ? 1 : 0.08) : 1;
         ctx.lineWidth = s.width / cam.k;
@@ -243,7 +249,7 @@ export default function GraphView({ onOpenNote }) {
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
           ctx.stroke();
         } else {
-          ctx.fillStyle = n.id === hov ? "#a5f3fc" : "#22d3ee";
+          ctx.fillStyle = n.id === hov ? hx.light : hx.hex;
           ctx.beginPath();
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
           ctx.fill();
@@ -420,11 +426,11 @@ export default function GraphView({ onOpenNote }) {
           title={matches.length > 0 ? `${matches.length} match${matches.length === 1 ? "" : "es"} — Enter to jump` : "Find node"}
           className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs ${
             query
-              ? "border border-cyan-400/25 bg-cyan-400/10"
+              ? `border ${acc.softBorder} ${acc.softBg}`
               : "glass-menu"
           }`}
         >
-          <LuSearch size={13} className={`shrink-0 ${query ? "text-cyan-300" : "text-neutral-500"}`} />
+          <LuSearch size={13} className={`shrink-0 ${query ? acc.text : "text-neutral-500"}`} />
           <input
             value={query}
             onChange={(e) => {
@@ -444,7 +450,7 @@ export default function GraphView({ onOpenNote }) {
             className="w-24 bg-transparent text-xs text-neutral-200 placeholder:text-neutral-600 focus:outline-none"
           />
           {query && (
-            <span className={`shrink-0 ${matches.length > 0 ? "text-cyan-100" : "text-neutral-600"}`}>
+            <span className={`shrink-0 ${matches.length > 0 ? acc.softText : "text-neutral-600"}`}>
               {matches.length}
             </span>
           )}
@@ -456,7 +462,7 @@ export default function GraphView({ onOpenNote }) {
             title={`Toggle ${p.label}`}
             className={`rounded-xl px-2.5 py-1.5 text-xs ${
               show[p.key]
-                ? "border border-cyan-400/25 bg-cyan-400/10 text-cyan-100"
+                ? `border ${acc.softBorder} ${acc.softBg} ${acc.softText}`
                 : "glass-menu text-neutral-500"
             }`}
           >
@@ -468,11 +474,14 @@ export default function GraphView({ onOpenNote }) {
       {/* Legend */}
       <div className="glass-menu absolute bottom-3 left-3 rounded-xl px-3 py-2 text-[11px] leading-relaxed text-neutral-400">
         <p className="mb-1 flex items-center gap-1.5 font-medium text-neutral-300">
-          <LuNetwork size={12} className="text-cyan-300" />
+          <LuNetwork size={12} className={acc.text} />
           {visible.nodes.length} nodes · {visible.links.length} links
         </p>
         <p>
-          <span className="mr-1 inline-block h-px w-4 bg-cyan-300/70 align-middle" />
+          <span
+            className="mr-1 inline-block h-px w-4 align-middle"
+            style={{ background: acc.hexDim }}
+          />
           WikiLink ({counts.wikilink})
         </p>
         <p>
@@ -501,7 +510,7 @@ export default function GraphView({ onOpenNote }) {
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <LuLoaderCircle size={20} className="animate-spin text-cyan-300" />
+          <LuLoaderCircle size={20} className={`animate-spin ${acc.text}`} />
         </div>
       )}
       {!loading && error && (

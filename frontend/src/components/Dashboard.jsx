@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { accentHexes, currentAccent } from "../accent";
+import { loadSettings } from "../settings";
 
 // Center-area dashboard: stat cards, simple charts, AI digest.
 export default function Dashboard() {
+  const acc = currentAccent();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,7 +71,7 @@ export default function Dashboard() {
           <button
             onClick={() => load(true)}
             disabled={refreshing}
-            className="rounded-md border border-cyan-300/30 px-2 py-1 text-xs text-cyan-200 hover:bg-cyan-400/10 disabled:opacity-50"
+            className={`rounded-md border ${acc.bubbleBorder} px-2 py-1 text-xs ${acc.text} ${acc.softHover} disabled:opacity-50`}
           >
             {refreshing ? "Refreshing..." : "Refresh AI"}
           </button>
@@ -84,7 +87,7 @@ export default function Dashboard() {
                 {digest.topics.map((t) => (
                   <span
                     key={t.topic}
-                    className="rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100"
+                    className={`rounded-full border ${acc.bubbleBorder} ${acc.softBg} px-3 py-1 text-xs ${acc.softText}`}
                   >
                     {t.topic} · {t.noteCount}
                   </span>
@@ -121,7 +124,7 @@ function Panel({ title, action, children }) {
 function StatCard({ label, value }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <p className="text-2xl font-semibold text-cyan-100">{value}</p>
+      <p className={`text-2xl font-semibold ${currentAccent().text}`}>{value}</p>
       <p className="text-xs text-neutral-500">{label}</p>
     </div>
   );
@@ -135,7 +138,13 @@ function BarList({ items }) {
         <div key={i.label} className="flex items-center gap-2">
           <span className="w-32 truncate text-sm text-neutral-400">{i.label}</span>
           <div className="h-4 flex-1 overflow-hidden rounded bg-white/5">
-            <div className="h-full rounded bg-cyan-400/80" style={{ width: `${(i.count / max) * 100}%` }} />
+            <div
+              className="h-full rounded"
+              style={{
+                width: `${(i.count / max) * 100}%`,
+                background: accentHexes(loadSettings().accent).hex,
+              }}
+            />
           </div>
           <span className="w-8 text-right text-sm text-neutral-400">{i.count}</span>
         </div>

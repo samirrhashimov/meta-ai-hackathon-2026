@@ -2,7 +2,7 @@ import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import { Note } from "../models/Note.js";
 import { Folder } from "../models/Folder.js";
-import { aiEnabled, organizeNote, tagNoteInBackground } from "../services/ai.js";
+import { aiEnabled, aiFromReq, organizeNote, tagNoteInBackground } from "../services/ai.js";
 
 const router = Router();
 
@@ -37,12 +37,13 @@ router.post("/", async (req, res, next) => {
       if (!folder) return res.status(404).json({ error: "Folder not found" });
     }
     let note = await Note.create({ title: title.trim(), content, folderId, tags });
+    const creds = aiFromReq(req);
     // AI tags every note in the background; the save itself stays fast.
-    tagNoteInBackground(note._id);
+    tagNoteInBackground(note._id, creds);
     // autoSort: AI picks/creates a matching folder. The note stays as-is on failure.
-    if (autoSort && aiEnabled()) {
+    if (autoSort && aiEnabled(creds)) {
       try {
-        note = (await organizeNote(note._id)).note;
+        note = (await organizeNote(note._id, creds)).note;
       } catch (err) {
         console.error("Auto-sort failed:", err.message);
       }
@@ -93,7 +94,7 @@ router.put("/:id", async (req, res, next) => {
     if (!note) return res.status(404).json({ error: "Note not found" });
     // Changed text gets fresh AI tags in the background (manual tags are kept).
     if (req.body.title !== undefined || req.body.content !== undefined) {
-      tagNoteInBackground(note._id);
+      tagNoteInBackground(note._id, aiFromReq(req));
     }
     res.json(note);
   } catch (err) {

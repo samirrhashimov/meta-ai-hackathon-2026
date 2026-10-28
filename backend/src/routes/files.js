@@ -5,7 +5,7 @@ import { isValidObjectId } from "mongoose";
 import { File } from "../models/File.js";
 import { Folder } from "../models/Folder.js";
 import { Note } from "../models/Note.js";
-import { tagFileInBackground, tagNoteInBackground } from "../services/ai.js";
+import { aiFromReq, tagFileInBackground, tagNoteInBackground } from "../services/ai.js";
 
 const router = Router();
 
@@ -87,7 +87,7 @@ router.get("/", async (req, res, next) => {
         folderId: doc.folderId || null,
         tags: doc.tags || [],
       });
-      tagNoteInBackground(note._id);
+      tagNoteInBackground(note._id, aiFromReq(req));
     }
     const files = await File.find(filter).select("-data").sort({ createdAt: -1 });
     res.json(files);
@@ -117,7 +117,7 @@ router.post("/", upload.single("file"), async (req, res, next) => {
         folderId,
         tags: [],
       });
-      tagNoteInBackground(note._id);
+      tagNoteInBackground(note._id, aiFromReq(req));
       return res.status(201).json({ note: await note.populate("folderId", "name") });
     }
     const doc = await File.create({
@@ -128,7 +128,7 @@ router.post("/", upload.single("file"), async (req, res, next) => {
       data: req.file.buffer,
     });
     // AI tags every upload in the background; the upload itself stays fast.
-    tagFileInBackground(doc._id);
+    tagFileInBackground(doc._id, aiFromReq(req));
     res.status(201).json({ file: toMeta(doc) });
   } catch (err) {
     next(err);

@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { LuFileText, LuSearch, LuX } from "react-icons/lu";
 import { FileTypeIcon } from "./FileViewer";
+import { currentAccent } from "../accent";
 import Modal from "./Modal";
 
 // Wide tags browser: searchable + sortable tag list on the left,
 // the selected tag's notes and files on the right.
 export default function TagsModal({ notes, files, onOpenNote, onOpenFile, onClose }) {
+  const acc = currentAccent();
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("count"); // count | az
   const [selected, setSelected] = useState(null); // lowercased tag key
@@ -91,7 +93,7 @@ export default function TagsModal({ notes, files, onOpenNote, onOpenFile, onClos
                     onClick={() => setSortBy(key)}
                     className={`flex-1 rounded-md px-2 py-1 text-xs ${
                       sortBy === key
-                        ? "bg-cyan-400/20 text-cyan-100"
+                        ? `${acc.softBgStrong} ${acc.softText}`
                         : "text-neutral-400 hover:text-neutral-200"
                     }`}
                   >
@@ -115,7 +117,7 @@ export default function TagsModal({ notes, files, onOpenNote, onOpenFile, onClos
                         onClick={() => setSelected(isActive ? null : key)}
                         className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm ${
                           isActive
-                            ? "bg-cyan-400/15 text-cyan-100"
+                            ? `${acc.softBgStrong} ${acc.softText}`
                             : "text-neutral-300 hover:bg-white/5"
                         }`}
                       >
@@ -155,7 +157,7 @@ export default function TagsModal({ notes, files, onOpenNote, onOpenFile, onClos
                         <button
                           key={n._id}
                           onClick={() => onOpenNote(n._id)}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 hover:bg-cyan-400/10"
+                          className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 ${acc.softHover}`}
                         >
                           <LuFileText size={14} className="shrink-0 text-neutral-500" />
                           <span className="truncate">{n.title}</span>
@@ -172,7 +174,7 @@ export default function TagsModal({ notes, files, onOpenNote, onOpenFile, onClos
                         <button
                           key={f._id}
                           onClick={() => onOpenFile(f._id)}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 hover:bg-cyan-400/10"
+                          className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 ${acc.softHover}`}
                         >
                           <FileTypeIcon mime={f.mimeType} />
                           <span className="truncate">{f.name}</span>
