@@ -40,6 +40,7 @@ export default function App() {
   const [closingId, setClosingId] = useState(null); // dirty tab awaiting discard confirm
   const [deletingNote, setDeletingNote] = useState(null); // { id, title } awaiting delete confirm
   const [deletingFile, setDeletingFile] = useState(null); // { id, name } awaiting delete confirm
+  const [deletingFolder, setDeletingFolder] = useState(null); // { id, name } awaiting delete confirm
   const [searchOpen, setSearchOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false); // tags browser modal
   const [searchQ, setSearchQ] = useState("");
@@ -295,7 +296,12 @@ export default function App() {
   }
 
   function handleDeleteFolder(id, name) {
-    if (!window.confirm(`Delete the "${name}" folder? Its contents are kept, they become unfiled.`)) return;
+    setDeletingFolder({ id, name });
+  }
+
+  function confirmDeleteFolder() {
+    const { id } = deletingFolder;
+    setDeletingFolder(null);
     run(async () => {
       await api.deleteFolder(id);
       await refresh(); // folderIds changed, refresh the lists
@@ -629,7 +635,7 @@ export default function App() {
           })
         ) : (
           <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-            <AiPanel onChanged={() => run(refresh)} variant="home" />
+            <AiPanel onChanged={() => run(refresh)} variant="home" notes={notes} folders={folders} files={files} />
           </div>
         )}
       </main>
@@ -652,7 +658,7 @@ export default function App() {
           aria-hidden={!rightOpen}
         >
           <div className="h-full" style={{ width: rightW }}>
-            <AiPanel onChanged={() => run(refresh)} />
+            <AiPanel onChanged={() => run(refresh)} notes={notes} folders={folders} files={files} />
           </div>
         </aside>
         </>
@@ -771,6 +777,35 @@ export default function App() {
                 </button>
                 <button
                   onClick={confirmDeleteFile}
+                  className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {/* Delete-folder confirm */}
+      {deletingFolder && (
+        <Modal onClose={() => setDeletingFolder(null)}>
+          {(close) => (
+            <div className="glass w-full max-w-sm rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-neutral-100">Delete folder</h3>
+              <p className="mt-1 text-sm text-neutral-400">
+                "{deletingFolder.name}" will be deleted. Its contents are kept, they become
+                unfiled. Are you sure?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={close}
+                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                >
+                  Keep
+                </button>
+                <button
+                  onClick={confirmDeleteFolder}
                   className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
                 >
                   Delete

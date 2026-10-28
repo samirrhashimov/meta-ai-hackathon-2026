@@ -3,6 +3,7 @@ import { isValidObjectId } from "mongoose";
 import multer from "multer";
 import { aiEnabled, organizeFile, organizeNote, transcribeAudio } from "../services/ai.js";
 import { availableModels, revertCheckpoint, runChat } from "../services/chat.js";
+import { stashUpload } from "../services/pending.js";
 import { getInsights } from "../services/insights.js";
 import { ChatMessage } from "../models/ChatMessage.js";
 
@@ -41,11 +42,11 @@ router.post("/chat", async (req, res, next) => {
         .status(503)
         .json({ error: "AI key is not set (backend/.env → META_API_KEY)" });
     }
-    const { message, model } = req.body;
+    const { message, model, attachments } = req.body;
     if (!message || !message.trim()) {
       return res.status(400).json({ error: "Message is required" });
     }
-    const result = await runChat(message.trim(), model);
+    const result = await runChat(message.trim(), model, attachments);
     res.json(result);
   } catch (err) {
     next(err);
@@ -78,6 +79,28 @@ router.post("/organize-file", async (req, res, next) => {
     res.json(result);
   } catch (err) {
     if (err.status === 404) return res.status(404).json({ error: err.message });
+    next(err);
+  }
+});
+
+const attachUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+// POST /api/ai/attachments — form-data: file → temp chat attachment { attachment }.
+// Lives only in memory (30 min) until the AI places it with saveUpload.
+router.post("/attachments", attachUpload.single("file"), (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const attachment = stashUpload({
+      name: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      data: req.file.buffer,
+    });
+    res.status(201).json({ attachment });
+  } catch (err) {
     next(err);
   }
 });

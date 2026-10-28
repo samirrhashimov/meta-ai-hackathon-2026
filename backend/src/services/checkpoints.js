@@ -1,11 +1,13 @@
 import { isValidObjectId } from "mongoose";
 import { Folder } from "../models/Folder.js";
 import { Note } from "../models/Note.js";
+import { File } from "../models/File.js";
 import { ChatCheckpoint } from "../models/ChatCheckpoint.js";
 
-// Fields restored on revert (everything else, e.g. ids/timestamps, is kept).
+// Fields restored on revert (everything else, e.g. ids/timestamps/binaries, is kept).
 const NOTE_FIELDS = ["title", "content", "folderId", "tags", "aiSummary"];
 const FOLDER_FIELDS = ["name", "parentId"];
+const FILE_FIELDS = ["name", "folderId", "tags"];
 
 function pick(doc, fields) {
   const out = {};
@@ -13,12 +15,12 @@ function pick(doc, fields) {
   return out;
 }
 
-function modelFor(collection) {
-  return collection === "notes" ? Note : Folder;
+function modelFor(kind) {
+  return kind === "notes" ? Note : kind === "files" ? File : Folder;
 }
 
-function fieldsFor(collection) {
-  return collection === "notes" ? NOTE_FIELDS : FOLDER_FIELDS;
+function fieldsFor(kind) {
+  return kind === "notes" ? NOTE_FIELDS : kind === "files" ? FILE_FIELDS : FOLDER_FIELDS;
 }
 
 // Captured BEFORE a mutating tool runs. Best-effort: never breaks the turn.
@@ -33,6 +35,10 @@ export async function snapshotBefore(name, args) {
       if (note)
         return { kind: "notes", id: note._id, before: pick(note, NOTE_FIELDS), deleted: true };
     }
+    if (name === "moveFile" && isValidObjectId(args.fileId)) {
+      const file = await File.findById(args.fileId).lean();
+      if (file) return { kind: "files", id: file._id, before: pick(file, FILE_FIELDS) };
+    }
   } catch {
     // no checkpoint rather than a failed turn
   }
@@ -45,6 +51,8 @@ export function opAfter(name, args, result, snap) {
     return { kind: "notes", id: result._id, before: null };
   if (name === "createFolder" && result?._id)
     return { kind: "folders", id: result._id, before: null };
+  if (name === "saveUpload" && result?._id)
+    return { kind: result.kind === "note" ? "notes" : "files", id: result._id, before: null };
   if (snap) return snap; // update/move/delete carried its before-state
   return null;
 }

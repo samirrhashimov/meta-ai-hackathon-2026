@@ -7,7 +7,7 @@ import { Schema, model } from "mongoose";
 // otherwise          → restore the stored fields on revert.
 const opSchema = new Schema(
   {
-    kind: { type: String, enum: ["notes", "folders"], required: true },
+    kind: { type: String, enum: ["notes", "folders", "files"], required: true },
     id: { type: Schema.Types.ObjectId, required: true },
     before: { type: Schema.Types.Mixed, default: null },
     deleted: { type: Boolean, default: false },

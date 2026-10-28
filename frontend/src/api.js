@@ -35,11 +35,21 @@ export const api = {
   organizeFile: (fileId) =>
     request("/api/ai/organize-file", { method: "POST", body: JSON.stringify({ fileId }) }),
 
-  chat: (message, model) =>
-    request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message, model }) }),
+  chat: (message, model, attachments) =>
+    request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message, model, attachments }) }),
   chatModels: () => request("/api/ai/models"),
   revert: (messageId) =>
     request("/api/ai/revert", { method: "POST", body: JSON.stringify({ messageId }) }),
+
+  // Temp chat attachment: lives only in memory until the AI places it.
+  attachUpload: async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API_BASE}/api/ai/attachments`, { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Upload failed");
+    return data.attachment;
+  },
   chatHistory: () => request("/api/ai/chat"),
   clearChat: () => request("/api/ai/chat", { method: "DELETE" }),
 

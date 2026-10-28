@@ -19,11 +19,12 @@ import {
   LuHistory,
   LuInfo,
   LuLoaderCircle,
+  LuMenu,
   LuPencil,
   LuPlus,
-  LuSparkles,
   LuTrash2,
   LuUpload,
+  LuWandSparkles,
 } from "react-icons/lu";
 import { fileContentUrl } from "../api";
 import { FileTypeIcon } from "./FileViewer";
@@ -92,7 +93,24 @@ export default function Sidebar({
   sorting,
 }) {
   const fileInputRef = useRef(null);
+  const rootRef = useRef(null);
+  const menuRef = useRef(null); // open parent menu, for cascading submenu position
+  const [compact, setCompact] = useState(false); // narrow panel: hamburger instead of buttons
   const [menu, setMenu] = useState(null); // { x, y, items }
+  const [subMenu, setSubMenu] = useState(null); // cascaded { x, y, items } right of the parent
+  const [subPinned, setSubPinned] = useState(false); // click keeps the submenu open
+  const subRef = useRef(null); // open submenu, for gap-free hover handoff
+
+  // Collapse the header into a hamburger menu when the panel gets narrow.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      setCompact(entries[0].contentRect.width < 250);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [showInfo, setShowInfo] = useState(null); // file awaiting info view
   const [dragOver, setDragOver] = useState(null); // folderId currently hovered while dragging
   const [sortBy, setSortBy] = useState(() => localStorage.getItem("ui.sortBy") || "created");
@@ -204,6 +222,25 @@ export default function Sidebar({
 
   function closeMenu() {
     setMenu(null);
+    setSubMenu(null);
+    setSubPinned(false);
+  }
+
+  // Windows-style cascade: submenu overlaps the parent edge by 2px so there
+  // is no dead gap when sliding across; flips left when there is no room.
+  // Click-opened submenus pin in place until an action or outside click.
+  function openSub(e, items, pinned = false) {
+    const wrap = menuRef.current?.getBoundingClientRect();
+    const r = e.currentTarget.getBoundingClientRect();
+    const w = 176;
+    let x = (wrap ? wrap.right : r.right) - 2;
+    if (x + w > window.innerWidth - 8) x = Math.max(8, (wrap ? wrap.left : r.left) - w + 2);
+    setSubPinned(pinned);
+    setSubMenu({
+      x,
+      y: Math.min(r.top - 4, window.innerHeight - items.length * 36 - 16),
+      items,
+    });
   }
 
   function startDrag(e, payload) {
@@ -300,6 +337,40 @@ export default function Sidebar({
     action: () => setSortBy(key),
   }));
 
+  function toggleExpandAll() {
+    setTreeSignal((s) => ({ open: !allOpen, n: (s?.n || 0) + 1 }));
+    setAllOpen((v) => !v);
+  }
+
+  // Every header action in one menu, used when the panel is too narrow for buttons.
+  // Sort stays a single entry that cascades its options to the right.
+  const compactMenu = [
+    { label: "New Note", icon: LuFilePlus, action: () => onNewNote(null) },
+    { label: "New Folder", icon: LuFolderPlus, action: () => onNewFolder(null) },
+    { label: "Upload File", icon: LuUpload, action: () => fileInputRef.current?.click() },
+    {
+      label: `Sort By: ${SORTS[sortBy]?.label || "Created date"}`,
+      icon: LuArrowDownWideNarrow,
+      subItems: sortMenu,
+    },
+    {
+      label: allOpen ? "Collapse" : "Expand",
+      icon: allOpen ? LuChevronsDownUp : LuChevronsUpDown,
+      action: toggleExpandAll,
+    },
+  ];
+
+  function openCompactMenu(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenu({
+      x: Math.min(r.left, window.innerWidth - 200),
+      y: Math.min(r.bottom + 4, window.innerHeight - compactMenu.length * 36 - 16),
+      items: compactMenu,
+    });
+  }
+
   const noteMenu = (note) => [
     { label: "Open", icon: LuExternalLink, action: () => onSelectNote(note._id) },
     { label: "Download", icon: LuDownload, action: () => downloadNote(note) },
@@ -326,68 +397,77 @@ export default function Sidebar({
     { label: "Delete File", icon: LuTrash2, danger: true, action: () => onDeleteFile(file._id, file.name) },
   ];
 
-  return (
-    <div className="flex h-full flex-col" onContextMenu={(e) => openMenu(e, blankMenu)}>
-      <div className="relative flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-3">
-        <h1 className="text-sm font-semibold tracking-wide text-neutral-100">My Notes</h1>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => onNewNote(null)}
-              title="New note"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
-            >
-              <LuPlus size={15} />
-            </button>
-            <button
-              onClick={() => onNewFolder(null)}
-              title="New folder"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
-            >
-              <LuFolderPlus size={15} />
-            </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              title="Upload file"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
-            >
-              <LuUpload size={15} />
-            </button>
-            <button
-              onClick={(e) => openMenu(e, sortMenu)}
-              title={`Sort notes: ${SORTS[sortBy]?.label || "Created date"}`}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
-            >
-              <LuArrowDownWideNarrow size={15} />
-            </button>
-            <button
-              onClick={() => {
-                setTreeSignal((s) => ({ open: !allOpen, n: (s?.n || 0) + 1 }));
-                setAllOpen((v) => !v);
-              }}
-              title={allOpen ? "Collapse all folders" : "Expand all folders"}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
-            >
-              {allOpen ? <LuChevronsDownUp size={15} /> : <LuChevronsUpDown size={15} />}
-            </button>
+  const iconBtn =
+    "flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200";
+  const smartSortBtn = (
+    <button
+      onClick={onSortAll}
+      disabled={sorting !== null || totalUnfiled === 0}
+      title={
+        sorting
+          ? `Sorting ${sorting.done}/${sorting.total}...`
+          : `Smart Sort${totalUnfiled > 0 ? ` (${totalUnfiled} unfiled)` : ""}`
+      }
+      className={`flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400 text-[#06202a] hover:bg-cyan-300 disabled:cursor-default ${
+        sorting ? "" : "disabled:opacity-40"
+      }`}
+    >
+      {sorting ? (
+        <LuLoaderCircle size={15} className="animate-spin" />
+      ) : (
+        <LuWandSparkles size={15} />
+      )}
+    </button>
+  );
 
-            <button
-              onClick={onSortAll}
-              disabled={sorting !== null || totalUnfiled === 0}
-              title={
-                sorting
-                  ? `Sorting ${sorting.done}/${sorting.total}...`
-                  : `AI Sort All${totalUnfiled > 0 ? ` (${totalUnfiled} unfiled)` : ""}`
-              }
-              className={`flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400 text-[#06202a] hover:bg-cyan-300 disabled:cursor-default ${
-                sorting ? "" : "disabled:opacity-40"
-              }`}
-            >
-              {sorting ? (
-                <LuLoaderCircle size={15} className="animate-spin" />
-              ) : (
-                <LuSparkles size={15} />
-              )}
-            </button>
+  return (
+    <div ref={rootRef} className="flex h-full flex-col" onContextMenu={(e) => openMenu(e, blankMenu)}>
+      <div className="relative flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-3">
+        <h1 className="truncate text-sm font-semibold tracking-wide text-neutral-100">Files</h1>
+          <div className="flex shrink-0 items-center gap-1">
+            {compact ? (
+              <>
+                {smartSortBtn}
+                <button
+                  onClick={openCompactMenu}
+                  title="Files menu"
+                  className={iconBtn}
+                >
+                  <LuMenu size={15} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => onNewNote(null)} title="New note" className={iconBtn}>
+                  <LuPlus size={15} />
+                </button>
+                <button onClick={() => onNewFolder(null)} title="New folder" className={iconBtn}>
+                  <LuFolderPlus size={15} />
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Upload file"
+                  className={iconBtn}
+                >
+                  <LuUpload size={15} />
+                </button>
+                <button
+                  onClick={(e) => openMenu(e, sortMenu)}
+                  title={`Sort notes: ${SORTS[sortBy]?.label || "Created date"}`}
+                  className={iconBtn}
+                >
+                  <LuArrowDownWideNarrow size={15} />
+                </button>
+                <button
+                  onClick={toggleExpandAll}
+                  title={allOpen ? "Collapse all folders" : "Expand all folders"}
+                  className={iconBtn}
+                >
+                  {allOpen ? <LuChevronsDownUp size={15} /> : <LuChevronsUpDown size={15} />}
+                </button>
+                {smartSortBtn}
+              </>
+            )}
           </div>
         {sorting && (
           <div
@@ -411,12 +491,67 @@ export default function Sidebar({
 
       {menu && createPortal(
         <div
+          ref={menuRef}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
+          onMouseLeave={(e) => {
+            // Sliding into the (overlapping) submenu must not close it.
+            if (subRef.current?.contains(e.relatedTarget)) return;
+            if (!subPinned) setSubMenu(null);
+          }}
           className="glass-menu pop-in fixed z-50 w-44 overflow-hidden rounded-xl p-1 text-sm"
           style={{ left: menu.x, top: menu.y }}
         >
           {menu.items.map((item) => (
+            <button
+              key={item.label}
+              onMouseEnter={(e) => {
+                if (item.subItems) openSub(e, item.subItems, subPinned);
+                else if (!subPinned) setSubMenu(null);
+              }}
+              onClick={(e) => {
+                if (item.subItems) {
+                  openSub(e, item.subItems, true);
+                  return;
+                }
+                closeMenu();
+                item.action();
+              }}
+              className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left ${
+                item.danger
+                  ? "text-red-300 hover:bg-red-400/10"
+                  : item.active
+                    ? "bg-cyan-400/15 text-cyan-100"
+                    : "text-neutral-200 hover:bg-cyan-400/10"
+              }`}
+            >
+              {item.icon && (
+                <item.icon
+                  size={14}
+                  className={`shrink-0 ${item.danger ? "text-red-300/70" : "text-neutral-500"}`}
+                />
+              )}
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              {item.subItems && <LuChevronRight size={14} className="shrink-0 text-neutral-500" />}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+      {subMenu && createPortal(
+        <div
+          ref={subRef}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+          onMouseLeave={(e) => {
+            // Sliding back into the parent menu must not close it.
+            if (menuRef.current?.contains(e.relatedTarget)) return;
+            if (!subPinned) setSubMenu(null);
+          }}
+          className="glass-menu pop-in fixed z-50 w-44 overflow-hidden rounded-xl p-1 text-sm"
+          style={{ left: subMenu.x, top: subMenu.y }}
+        >
+          {subMenu.items.map((item) => (
             <button
               key={item.label}
               onClick={() => {
@@ -437,7 +572,7 @@ export default function Sidebar({
                   className={`shrink-0 ${item.danger ? "text-red-300/70" : "text-neutral-500"}`}
                 />
               )}
-              {item.label}
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
             </button>
           ))}
         </div>,

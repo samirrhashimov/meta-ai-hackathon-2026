@@ -1,9 +1,11 @@
 import { isValidObjectId } from "mongoose";
 import { Folder } from "../models/Folder.js";
 import { Note } from "../models/Note.js";
+import { File } from "../models/File.js";
 import { ChatMessage } from "../models/ChatMessage.js";
-import { aiConfig } from "./ai.js";
+import { aiConfig, tagFileInBackground, tagNoteInBackground } from "./ai.js";
 import { opAfter, revertCheckpoint, saveCheckpoint, snapshotBefore } from "./checkpoints.js";
+import { peekUpload, takeUpload } from "./pending.js";
 
 export { revertCheckpoint };
 
@@ -117,6 +119,71 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "listFiles",
+      description: "List uploaded files (images, pdfs) with ids, names, types and folder placement.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getFile",
+      description: "Read an uploaded file's metadata and, for text files, its content.",
+      parameters: {
+        type: "object",
+        properties: { fileId: { type: "string" } },
+        required: ["fileId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "moveFile",
+      description: "Move an uploaded file into a folder (null = unfiled).",
+      parameters: {
+        type: "object",
+        properties: {
+          fileId: { type: "string" },
+          folderId: { type: "string", description: "Folder id, or null for unfiled" },
+        },
+        required: ["fileId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "readUpload",
+      description:
+        "Read a +/dropped chat attachment's metadata and, for text files, its content.",
+      parameters: {
+        type: "object",
+        properties: { attachmentId: { type: "string" } },
+        required: ["attachmentId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "saveUpload",
+      description:
+        "Place a +/dropped chat attachment into the library: a folder's file, or a real note for markdown. Consumes the attachment.",
+      parameters: {
+        type: "object",
+        properties: {
+          attachmentId: { type: "string" },
+          folderId: { type: "string", description: "Folder id, or null for unfiled" },
+          name: { type: "string", description: "File/note name override" },
+        },
+        required: ["attachmentId"],
+      },
+    },
+  },
 ];
 
 function brief(note) {
@@ -186,6 +253,85 @@ async function runTool(name, args) {
       if (!note) throw new Error("Note not found");
       return { deleted: args.noteId };
     }
+    case "listFiles": {
+      const files = await File.find().select("-data").sort({ updatedAt: -1 }).limit(100);
+      return files.map((f) => ({
+        _id: f._id,
+        name: f.name,
+        mimeType: f.mimeType,
+        size: f.size,
+        folderId: f.folderId,
+        tags: f.tags,
+      }));
+    }
+    case "getFile": {
+      if (!isValidObjectId(args.fileId)) throw new Error("Invalid fileId");
+      const file = await File.findById(args.fileId);
+      if (!file) throw new Error("File not found");
+      const out = {
+        _id: file._id,
+        name: file.name,
+        mimeType: file.mimeType,
+        size: file.size,
+        folderId: file.folderId,
+        tags: file.tags,
+      };
+      const textual =
+        (file.mimeType || "").startsWith("text/") || /\.md$/i.test(file.name || "");
+      if (textual && file.data) out.content = file.data.toString("utf8").slice(0, 4000);
+      return out;
+    }
+    case "moveFile": {
+      if (!isValidObjectId(args.fileId)) throw new Error("Invalid fileId");
+      const folderId = args.folderId || null;
+      if (folderId) {
+        if (!isValidObjectId(folderId)) throw new Error("Invalid folderId");
+        if (!(await Folder.findById(folderId))) throw new Error("Folder not found");
+      }
+      const file = await File.findByIdAndUpdate(args.fileId, { folderId }, { new: true });
+      if (!file) throw new Error("File not found");
+      return { _id: file._id, name: file.name, folderId: file.folderId };
+    }
+    case "readUpload": {
+      const up = peekUpload(args.attachmentId);
+      if (!up) throw new Error("Attachment not found or expired");
+      const out = { id: up.id, name: up.name, mimeType: up.mimeType, size: up.size };
+      const textual =
+        (up.mimeType || "").startsWith("text/") || /\.md$/i.test(up.name || "");
+      if (textual && up.data) out.content = up.data.toString("utf8").slice(0, 4000);
+      return out;
+    }
+    case "saveUpload": {
+      const up = takeUpload(args.attachmentId);
+      if (!up) throw new Error("Attachment not found or expired");
+      const folderId = args.folderId || null;
+      if (folderId) {
+        if (!isValidObjectId(folderId)) throw new Error("Invalid folderId");
+        if (!(await Folder.findById(folderId))) throw new Error("Folder not found");
+      }
+      const name = (args.name || up.name || "upload").trim() || "upload";
+      if (up.mimeType === "text/markdown" || /\.md$/i.test(name)) {
+        const base = name.replace(/\.md$/i, "");
+        const note = await Note.create({
+          title: (base.trim() || "Untitled Note").slice(0, 200),
+          content: (up.data || Buffer.alloc(0)).toString("utf8"),
+          folderId,
+          tags: [],
+        });
+        tagNoteInBackground(note._id);
+        return { _id: note._id, kind: "note", name: note.title, folderId };
+      }
+      const file = await File.create({
+        name,
+        folderId,
+        mimeType: up.mimeType,
+        size: up.size,
+        data: up.data,
+        tags: [],
+      });
+      tagFileInBackground(file._id);
+      return { _id: file._id, kind: "file", name: file.name, folderId };
+    }
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -196,7 +342,8 @@ Rules:
 - To act on existing notes/folders, first look at the current state with listNotes/listFolders. Never invent ids.
 - After acting, briefly confirm what you did (note titles and folder names, not ids).
 - Keep answers short. Respond in the user's language.
-- Never use em dashes (—) or long dashes in your replies. Use commas, colons, or short sentences instead.`;
+- Never use em dashes (—) or long dashes in your replies. Use commas, colons, or short sentences instead.
+- Attached items appear under "Attachments": @-mentioned notes/folders/files already live in the library (use listNotes/getNote/listFiles/getFile/moveFile). Files added with + or drag-drop arrive as [upload]: they live only in this chat, so read them with readUpload and place them with saveUpload (markdown becomes a real note).`;
 
 // Safety net for the no-em-dash rule: rewrite any that slip through.
 function cleanReply(text) {
@@ -240,13 +387,52 @@ async function chatCompletion(messages, model) {
 }
 
 // One chat turn: saves the user message, runs the tool loop, saves and returns the reply.
-export async function runChat(userText, model) {
+// attachments: [{ kind: "note"|"folder"|"file", id }] referenced with @ or +.
+export async function runChat(userText, model, attachments = []) {
+  const attachLines = [];
+  for (const a of attachments || []) {
+    try {
+      if (!a || !a.id) continue;
+      if (a.kind === "upload") {
+        const u = peekUpload(a.id);
+        if (u)
+          attachLines.push(
+            `- [upload] "${u.name}" (${u.mimeType || "file"}, id ${u.id}, ${u.size || 0} bytes)`
+          );
+        continue;
+      }
+      if (!isValidObjectId(a.id)) continue;
+      if (a.kind === "note") {
+        const n = await Note.findById(a.id).lean();
+        if (n) attachLines.push(`- [note] "${n.title}" (id ${n._id}, folder ${n.folderId || "unfiled"})`);
+      } else if (a.kind === "folder") {
+        const f = await Folder.findById(a.id).lean();
+        if (f) attachLines.push(`- [folder] "${f.name}" (id ${f._id})`);
+      } else if (a.kind === "file") {
+        const f = await File.findById(a.id).select("-data").lean();
+        if (f)
+          attachLines.push(
+            `- [file] "${f.name}" (${f.mimeType || "file"}, id ${f._id}, ${f.folderId ? `folder ${f.folderId}` : "unfiled"})`
+          );
+      }
+    } catch {
+      // skip unresolvable attachments
+    }
+  }
+  const fullText =
+    attachLines.length > 0
+      ? `${userText}\n\nAttachments the user referenced with @:\n${attachLines.join("\n")}`
+      : userText;
   await ChatMessage.create({ role: "user", content: userText });
   const history = await ChatMessage.find().sort({ createdAt: 1 }).limit(50);
   const messages = [
     { role: "system", content: CHAT_SYSTEM },
     ...history.map((m) => ({ role: m.role, content: m.content })),
   ];
+  if (attachLines.length > 0) {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUser) lastUser.content = fullText;
+  }
 
   const actions = [];
   const pendingOps = []; // undo ops for this answer's checkpoint
