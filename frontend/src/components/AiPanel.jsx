@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { LuPanelRightClose, LuSend, LuSparkles } from "react-icons/lu";
+import { LuSend, LuSparkles } from "react-icons/lu";
 
 const HINTS = [
   "Create a Sports folder and move my gym note into it.",
@@ -11,20 +11,11 @@ const HINTS = [
 ];
 
 // Right panel: the Assistant chat.
-export default function AiPanel({ onChanged, onCollapse }) {
+export default function AiPanel({ onChanged }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+      <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
         <h2 className="text-sm font-semibold text-neutral-100">Assistant</h2>
-        {onCollapse && (
-          <button
-            onClick={onCollapse}
-            title="Close panel"
-            className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
-          >
-            <LuPanelRightClose size={16} />
-          </button>
-        )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col p-3">
         <Chat onChanged={onChanged} />

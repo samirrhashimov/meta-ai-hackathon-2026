@@ -29,8 +29,11 @@ export default function Resizer({ onResize }) {
       onPointerMove={onPointerMove}
       onPointerUp={finish}
       onPointerCancel={finish}
-      className="w-1 shrink-0 cursor-col-resize rounded transition-colors hover:bg-cyan-400/50 active:bg-cyan-400/70"
+      className="group flex w-[5px] shrink-0 cursor-col-resize justify-center transition-colors"
+      title="Drag to resize"
       style={{ touchAction: "none" }}
-    />
+    >
+      <div className="w-px bg-white/10 transition-colors group-hover:bg-cyan-400/70 group-active:bg-cyan-400" />
+    </div>
   );
 }

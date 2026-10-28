@@ -6,6 +6,7 @@ import { connectDB } from "./config/db.js";
 import foldersRouter from "./routes/folders.js";
 import notesRouter from "./routes/notes.js";
 import uploadRouter from "./routes/upload.js";
+import filesRouter from "./routes/files.js";
 import aiRouter from "./routes/ai.js";
 
 const app = express();
@@ -19,6 +20,7 @@ app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use("/api/folders", foldersRouter);
 app.use("/api/notes", notesRouter);
 app.use("/api/upload", uploadRouter);
+app.use("/api/files", filesRouter);
 app.use("/api/ai", aiRouter);
 
 // Uploaded files: GET /uploads/<file>

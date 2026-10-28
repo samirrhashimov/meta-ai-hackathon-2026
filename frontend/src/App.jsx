@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { api } from "./api";
 import Sidebar from "./components/Sidebar";
 import NoteEditor from "./components/NoteEditor";
+import FileViewer, { FileTypeIcon } from "./components/FileViewer";
 import AiPanel from "./components/AiPanel";
 import Dashboard from "./components/Dashboard";
 import { LuFileText, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuX } from "react-icons/lu";
@@ -29,12 +30,14 @@ function NavButton({ title, active, onClick, children, dim }) {
 export default function App() {
   const [folders, setFolders] = useState([]);
   const [notes, setNotes] = useState([]);
-  const [tabs, setTabs] = useState([]); // open note ids, Chrome-style
+  const [tabs, setTabs] = useState([]); // open tab ids: note ids + `file:<id>`, Chrome-style
+  const [files, setFiles] = useState([]); // uploaded files (images, pdfs) stored in MongoDB
   const [activeId, setActiveId] = useState(null);
   const [previewId, setPreviewId] = useState(null); // VS Code-style transient tab
   const [dirtyIds, setDirtyIds] = useState([]); // tabs with unsaved changes
   const [closingId, setClosingId] = useState(null); // dirty tab awaiting discard confirm
   const [deletingNote, setDeletingNote] = useState(null); // { id, title } awaiting delete confirm
+  const [deletingFile, setDeletingFile] = useState(null); // { id, name } awaiting delete confirm
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [searchAnchor, setSearchAnchor] = useState(null); // dropdown position under the button
@@ -62,9 +65,10 @@ export default function App() {
   const [error, setError] = useState("");
 
   async function refresh() {
-    const [f, n] = await Promise.all([api.listFolders(), api.listNotes()]);
+    const [f, n, fl] = await Promise.all([api.listFolders(), api.listNotes(), api.listFiles()]);
     setFolders(f);
     setNotes(n);
+    setFiles(fl);
   }
 
   useEffect(() => {
@@ -82,23 +86,32 @@ export default function App() {
     }
   }
 
-  const activeNote = notes.find((n) => n._id === activeId) || null;
+  // File tabs share the tab strip with notes: their ids are `file:<fileId>`.
+  const isFileTab = (id) => typeof id === "string" && id.startsWith("file:");
+  const fileIdOf = (tabId) => tabId.slice("file:".length);
+
+  const activeNote = !isFileTab(activeId) ? notes.find((n) => n._id === activeId) || null : null;
+  const activeFile = isFileTab(activeId)
+    ? files.find((f) => f._id === fileIdOf(activeId)) || null
+    : null;
 
   const sq = searchQ.trim().toLowerCase();
   const searchResults = sq ? notes.filter((n) => n.title.toLowerCase().includes(sq)) : [];
 
-  // Drop tabs whose notes vanished (e.g. deleted via AI chat).
+  // Drop tabs whose notes/files vanished (e.g. deleted via AI chat).
   useEffect(() => {
+    const tabAlive = (id) =>
+      isFileTab(id) ? files.some((f) => f._id === fileIdOf(id)) : notes.some((n) => n._id === id);
     setTabs((prev) => {
-      const next = prev.filter((id) => notes.some((n) => n._id === id));
+      const next = prev.filter(tabAlive);
       if (next.length !== prev.length && activeId && !next.includes(activeId)) {
         setActiveId(next[next.length - 1] ?? null);
       }
       return next;
     });
     setDirtyIds((prev) => prev.filter((id) => notes.some((n) => n._id === id)));
-    if (previewId && !notes.some((n) => n._id === previewId)) setPreviewId(null);
-  }, [notes, activeId, previewId]);
+    if (previewId && !tabAlive(previewId)) setPreviewId(null);
+  }, [notes, files, activeId, previewId]);
 
   // VS Code logic: opening a note replaces the transient preview tab,
   // unless that tab was edited (then it is pinned). An already-open tab activates.
@@ -127,6 +140,36 @@ export default function App() {
 
   function handleSelectNote(id) {
     openTab(id);
+  }
+
+  // File tabs join the same strip: opening a file replaces the transient
+  // preview tab unless that tab was edited (then the file pins a new tab).
+  function openFileTab(fid) {
+    const id = `file:${fid}`;
+    if (tabs.includes(id)) {
+      setActiveId(id);
+      setView("notes");
+      return;
+    }
+    if (previewId && !dirtyIds.includes(previewId)) {
+      setTabs((prev) => prev.map((t) => (t === previewId ? id : t)));
+    } else {
+      setTabs((prev) => [...prev, id]);
+    }
+    setPreviewId(id);
+    setActiveId(id);
+    setView("notes");
+  }
+
+  function openFileTabPinned(fid) {
+    const id = `file:${fid}`;
+    setTabs((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setActiveId(id);
+    setView("notes");
+  }
+
+  function handleSelectFile(fid) {
+    openFileTab(fid);
   }
 
   // Clicking a [[WikiLink]] opens that note, creating it when missing.
@@ -173,6 +216,7 @@ export default function App() {
     try {
       const p = JSON.parse(e.dataTransfer.getData("text/plain"));
       if (p?.kind === "note" && p.id) openTabPinned(p.id);
+      else if (p?.kind === "file" && p.id) openFileTabPinned(p.id);
     } catch {
       // not our drag payload: ignore
     }
@@ -212,6 +256,11 @@ export default function App() {
         const cur = note?.folderId?._id || note?.folderId || null;
         if (String(cur || "") === String(target || "")) return;
         await api.updateNote(id, { folderId: target });
+      } else if (kind === "file") {
+        const file = files.find((f) => f._id === id);
+        const cur = file?.folderId?._id || file?.folderId || null;
+        if (String(cur || "") === String(target || "")) return;
+        await api.updateFile(id, { folderId: target });
       } else {
         const folder = folders.find((f) => f._id === id);
         const cur = folder?.parentId?._id || folder?.parentId || null;
@@ -282,6 +331,45 @@ export default function App() {
     setDeletingNote({ id, title });
   }
 
+  // Files dropped onto a folder (or picked via the sidebar button) upload
+  // straight into that folder; binaries land in MongoDB.
+  function handleUploadFiles(fileList, folderId) {
+    run(async () => {
+      const uploaded = await api.uploadFiles(fileList, folderId);
+      setFiles((prev) => [...uploaded, ...prev]);
+    });
+  }
+
+  function handleRenameFile(id, name) {
+    setRenaming(null); // close the field at once; a failed save shows the error banner
+    run(async () => {
+      const updated = await api.updateFile(id, { name });
+      setFiles((prev) => prev.map((f) => (f._id === id ? updated : f)));
+    });
+  }
+
+  // Editing a .md / .txt file tab saves its text back into MongoDB.
+  function handleSaveFileContent(id, content) {
+    return run(async () => {
+      const updated = await api.updateFile(id, { content });
+      setFiles((prev) => prev.map((f) => (f._id === id ? updated : f)));
+    });
+  }
+
+  function handleDeleteFile(id, name) {
+    setDeletingFile({ id, name });
+  }
+
+  function confirmDeleteFile() {
+    const { id } = deletingFile;
+    setDeletingFile(null);
+    closeTab(`file:${id}`);
+    run(async () => {
+      await api.deleteFile(id);
+      setFiles((prev) => prev.filter((f) => f._id !== id));
+    });
+  }
+
   function confirmDeleteNote() {
     const { id } = deletingNote;
     setDeletingNote(null);
@@ -308,10 +396,10 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col gap-2 p-2 text-neutral-200">
+    <div className="flex h-screen flex-col text-neutral-200">
       {/* Top navbar: logo - homepage - search - settings - left toggle - tabs - right toggle */}
       <header
-        className="glass relative flex h-11 shrink-0 items-center gap-1 rounded-2xl px-2"
+        className="glass pane-top relative flex h-11 shrink-0 items-center gap-1 px-2"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleNavbarDrop}
       >
@@ -352,7 +440,10 @@ export default function App() {
         </NavButton>
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
           {tabs.map((id) => {
-            const t = notes.find((n) => n._id === id);
+            const fileTab = isFileTab(id);
+            const t = fileTab
+              ? files.find((f) => f._id === fileIdOf(id))
+              : notes.find((n) => n._id === id);
             const active = id === activeId && view === "notes";
             const dirty = dirtyIds.includes(id);
             const preview = id === previewId;
@@ -367,8 +458,12 @@ export default function App() {
                   active ? "bg-cyan-400/15 text-cyan-100" : "text-neutral-400 hover:bg-white/5"
                 } ${preview ? "italic" : ""}`}
               >
-                <LuFileText size={13} className="shrink-0 text-neutral-500" />
-                <span className="truncate">{t?.title || "Note"}</span>
+                {fileTab ? (
+                  <FileTypeIcon mime={t?.mimeType} size={13} />
+                ) : (
+                  <LuFileText size={13} className="shrink-0 text-neutral-500" />
+                )}
+                <span className="truncate">{fileTab ? t?.name || "File" : t?.title || "Note"}</span>
                 {dirty ? (
                   <button
                     onClick={(e) => {
@@ -403,24 +498,30 @@ export default function App() {
         </NavButton>
       </header>
 
-      <div className="flex min-h-0 flex-1 gap-2">
+      <div className="flex min-h-0 flex-1">
       {/* Left: folders + notes */}
       {leftOpen && (
       <>
-      <aside className="glass shrink-0 overflow-hidden rounded-2xl" style={{ width: sidebarW }}>
+      <aside className="glass pane-left shrink-0 overflow-hidden" style={{ width: sidebarW }}>
         <Sidebar
           folders={folders}
           notes={notes}
+          files={files}
           selectedNoteId={activeId}
+          selectedFileId={isFileTab(activeId) ? fileIdOf(activeId) : null}
           onSelectNote={handleSelectNote}
+          onSelectFile={handleSelectFile}
           onNewNote={handleNewNote}
           onNewFolder={handleNewFolder}
+          onUploadFiles={handleUploadFiles}
           onDeleteFolder={handleDeleteFolder}
           onDeleteNote={handleDeleteNote}
+          onDeleteFile={handleDeleteFile}
           renaming={renaming}
           onRenameStart={(kind, id) => setRenaming({ kind, id })}
           onRenameNote={handleRenameNote}
           onRenameFolder={handleRenameFolder}
+          onRenameFile={handleRenameFile}
           onRenameCancel={() => setRenaming(null)}
           onMove={handleMove}
           onSortAll={handleSortAll}
@@ -432,7 +533,7 @@ export default function App() {
       )}
 
       {/* Center: wide AI panel when no tab is open, editor otherwise */}
-      <main className="glass flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
+      <main className="glass pane-center flex min-w-0 flex-1 flex-col overflow-hidden">
         {view === "dashboard" ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <Dashboard />
@@ -441,9 +542,23 @@ export default function App() {
           // Every open tab keeps its own mounted editor (hidden when inactive),
           // so unsaved drafts survive tab switches — VS Code style.
           tabs.map((id) => {
+            const isActive = id === activeId;
+            if (isFileTab(id)) {
+              const f = files.find((x) => x._id === fileIdOf(id));
+              if (!f) return null;
+              return (
+                <div key={id} className={isActive ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+                  <FileViewer
+                    file={f}
+                    active={isActive}
+                    onSaveContent={handleSaveFileContent}
+                    onDelete={handleDeleteFile}
+                  />
+                </div>
+              );
+            }
             const n = notes.find((x) => x._id === id);
             if (!n) return null;
-            const isActive = id === activeId;
             return (
               <div key={id} className={isActive ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
                 <NoteEditor
@@ -466,11 +581,11 @@ export default function App() {
       </main>
 
       {/* Right: narrow AI panel while a note is open */}
-      {view === "notes" && activeNote && rightOpen && (
+      {view === "notes" && (activeNote || activeFile) && rightOpen && (
         <>
         <Resizer onResize={(dx) => setRightW((w) => Math.min(560, Math.max(240, w - dx)))} />
-        <aside className="glass shrink-0 overflow-hidden rounded-2xl" style={{ width: rightW }}>
-          <AiPanel onChanged={() => run(refresh)} onCollapse={() => setRightOpen(false)} />
+        <aside className="glass pane-right shrink-0 overflow-hidden" style={{ width: rightW }}>
+          <AiPanel onChanged={() => run(refresh)} />
         </aside>
         </>
       )}
@@ -548,6 +663,38 @@ export default function App() {
               </button>
               <button
                 onClick={confirmDeleteNote}
+                className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete-file confirm */}
+      {deletingFile && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setDeletingFile(null)}
+        >
+          <div
+            className="glass w-full max-w-sm rounded-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-neutral-100">Delete file</h3>
+            <p className="mt-1 text-sm text-neutral-400">
+              "{deletingFile.name}" will be permanently deleted. Are you sure?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setDeletingFile(null)}
+                className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+              >
+                Keep
+              </button>
+              <button
+                onClick={confirmDeleteFile}
                 className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
               >
                 Delete

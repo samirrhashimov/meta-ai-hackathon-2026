@@ -40,6 +40,27 @@ export const api = {
 
   insights: (refresh = false) => request(`/api/ai/insights${refresh ? "?refresh=1" : ""}`),
 
+  listFiles: () => request("/api/files"),
+  updateFile: (id, payload) =>
+    request(`/api/files/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteFile: (id) => request(`/api/files/${id}`, { method: "DELETE" }),
+
+  // Uploads one or more files into a folder (folderId null = unfiled).
+  // Binaries are stored in MongoDB; returns [{ file }] metadata.
+  uploadFiles: async (fileList, folderId) => {
+    const out = [];
+    for (const file of fileList) {
+      const form = new FormData();
+      form.append("file", file);
+      if (folderId) form.append("folderId", folderId);
+      const res = await fetch(`${API_BASE}/api/files`, { method: "POST", body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      out.push(data.file);
+    }
+    return out;
+  },
+
   // Uploads a file; with noteId it is appended to that note's attachments.
   upload: async (file, noteId) => {
     const form = new FormData();
@@ -54,3 +75,6 @@ export const api = {
 
 // Turns a backend "/uploads/..." path into a full URL.
 export const fileUrl = (path) => `${API_BASE}${path}`;
+
+// Raw bytes URL of a MongoDB-stored file (for img / pdf viewers).
+export const fileContentUrl = (id) => `${API_BASE}/api/files/${id}/content`;

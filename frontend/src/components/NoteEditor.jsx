@@ -239,7 +239,7 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Title row */}
-      <div className="flex items-center gap-2 border-b border-white/10 p-3">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-white/10 px-3">
         <input
           ref={titleRef}
           value={title}
@@ -295,7 +295,8 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
 
 // CodeMirror 5 + HyperMD: formatting marks hide on inactive lines
 // and reappear on the cursor line (Obsidian live-preview behavior).
-function HyperEditor({ active, initialValue, onChange, onPasteImage, onWikiLink }) {
+// Shared live-markdown editor, also used for editable (.md / .txt) files.
+export function HyperEditor({ active, initialValue, onChange, onPasteImage, onWikiLink }) {
   const hostRef = useRef(null);
   const cmRef = useRef(null);
   const onChangeRef = useRef(onChange);

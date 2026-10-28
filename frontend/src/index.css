@@ -28,6 +28,26 @@ body {
   box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4);
 }
 
+/* Attached VS Code / Obsidian style panes: square corners, no gaps,
+   single 1px dividers between panes. Combines with .glass (bg + blur). */
+.pane-top,
+.pane-left,
+.pane-right,
+.pane-center {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.pane-top {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+.pane-left {
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+}
+.pane-right {
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+}
+
 /* Slim scrollbars with a cyan hint */
 ::-webkit-scrollbar {
   width: 8px;
