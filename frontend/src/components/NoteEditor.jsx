@@ -404,12 +404,39 @@ export function HyperEditor({ active, initialValue, onChange, onPasteImage, onWi
         }
       }
     }
+    // Clicks in the empty area below the text (or far past it) put the cursor
+    // at the end of the last written character — no matter how far right or
+    // how low the click lands (Obsidian-like). Capture phase preempts
+    // CodeMirror's own placement; text, widgets, and modified clicks are left
+    // alone so selection and links keep working.
+    function handleEmptyClick(e) {
+      if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.target.closest("a, button, input, select, textarea, .hmd-linkcard")) return;
+      const last = cm.lastLine();
+      const endCh = (cm.getLine(last) || "").length;
+      let lastBottom = -Infinity;
+      try {
+        lastBottom = cm.cursorCoords({ line: last, ch: endCh }, "window").bottom;
+      } catch {
+        return;
+      }
+      if (e.clientY > lastBottom + 2) {
+        e.preventDefault();
+        e.stopPropagation();
+        const end = { line: last, ch: endCh };
+        cm.setCursor(end);
+        cm.focus();
+        cm.scrollIntoView(end);
+      }
+    }
     const wrapper = cm.getWrapperElement();
     wrapper.addEventListener("paste", handlePaste);
     wrapper.addEventListener("click", handleWikiClick);
+    wrapper.addEventListener("mousedown", handleEmptyClick, true);
     return () => {
       wrapper.removeEventListener("paste", handlePaste);
       wrapper.removeEventListener("click", handleWikiClick);
+      wrapper.removeEventListener("mousedown", handleEmptyClick, true);
       cm.toTextArea();
       cmRef.current = null;
     };

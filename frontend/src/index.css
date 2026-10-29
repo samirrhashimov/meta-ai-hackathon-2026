@@ -256,9 +256,17 @@ button:active {
 
 /* Live markdown (HyperMD + CodeMirror 5): transparent glass + cyan accent.
    The doubled class wins over the shipped stylesheets. */
+/* The editor stretches to fill its pane, so clicks in the empty area below
+   short notes still land inside CodeMirror (handled by handleEmptyClick). */
+.md-hypermd.md-hypermd {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
 .md-hypermd.md-hypermd .CodeMirror {
   height: auto;
   min-height: 18rem;
+  flex: 1 0 auto;
   background-color: transparent;
   color: #d4d4d8;
   font-family: inherit;

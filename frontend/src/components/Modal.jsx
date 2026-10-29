@@ -32,6 +32,15 @@ export default function Modal({ onClose, children }) {
   }
   useEffect(() => {
     stack.push(panelRef);
+    // Move focus into the modal on open: the click that opened it left focus
+    // on a button behind the modal, where Enter would re-trigger that button
+    // instead of the modal's primary action. Only steals focus when it is
+    // currently outside the modal (e.g. Tags' own autofocused search keeps it).
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) {
+      const primary = panel.querySelector("[data-modal-primary]:not([disabled])");
+      if (primary) primary.focus();
+    }
     function onKey(e) {
       if (stack[stack.length - 1] !== panelRef) return; // nested: top modal only
       const panel = panelRef.current;
@@ -62,9 +71,11 @@ export default function Modal({ onClose, children }) {
         }
       }
     }
-    window.addEventListener("keydown", onKey);
+    // Capture phase: runs before any in-app handler (editor, menus) that
+    // might stop the event's propagation.
+    window.addEventListener("keydown", onKey, true);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       const i = stack.indexOf(panelRef);
       if (i >= 0) stack.splice(i, 1);
     };

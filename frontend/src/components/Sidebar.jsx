@@ -19,6 +19,8 @@ import {
   LuHistory,
   LuInfo,
   LuLoaderCircle,
+  LuLock,
+  LuLockOpen,
   LuMenu,
   LuPencil,
   LuPlus,
@@ -91,6 +93,7 @@ export default function Sidebar({
   onRenameCancel,
   onMove,
   onSortAll,
+  onToggleLock,
   sorting,
 }) {
   const fileInputRef = useRef(null);
@@ -139,16 +142,17 @@ export default function Sidebar({
           : (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
   const notesByFolder = {};
   for (const n of orderedNotes) {
-    const key = n.folderId?._id || n.folderId || "unfiled";
+    const key = n.folderId?._id || n.folderId || "unsorted";
     if (!notesByFolder[key]) notesByFolder[key] = [];
     notesByFolder[key].push(n);
   }
 
   const rootFolders = folders.filter((f) => !f.parentId).sort(folderFn);
-  const unfiled = notesByFolder.unfiled || [];
-  const unfiledCount = unfiled.length;
-  const unfiledFilesCount = (files || []).filter((f) => !f.folderId).length;
-  const totalUnfiled = unfiledCount + unfiledFilesCount;
+  const unsorted = notesByFolder.unsorted || [];
+  // The Auto Sort button only files unlocked notes; locked ones are not counted.
+  const sortableCount = unsorted.filter((n) => !n.locked).length;
+  const unsortedFilesCount = (files || []).filter((f) => !f.folderId).length;
+  const totalUnsorted = sortableCount + unsortedFilesCount;
 
   // Files grouped by folder, sorted with the same sort mode (by name for A-Z).
   const fileFn =
@@ -161,11 +165,11 @@ export default function Sidebar({
           : (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
   const filesByFolder = {};
   for (const f of [...(files || [])].sort(fileFn)) {
-    const key = f.folderId ? String(f.folderId._id || f.folderId) : "unfiled";
+    const key = f.folderId ? String(f.folderId._id || f.folderId) : "unsorted";
     if (!filesByFolder[key]) filesByFolder[key] = [];
     filesByFolder[key].push(f);
   }
-  const unfiledFiles = filesByFolder.unfiled || [];
+  const unsortedFiles = filesByFolder.unsorted || [];
 
   const [treeSignal, setTreeSignal] = useState(null); // { open, n } for expand/collapse all
   const [allOpen, setAllOpen] = useState(true);
@@ -328,6 +332,11 @@ export default function Sidebar({
     { label: "New Note Here", icon: LuFilePlus, action: () => onNewNote(folder._id) },
     { label: "New Subfolder", icon: LuFolderPlus, action: () => onNewFolder(folder._id) },
     { label: "Rename", icon: LuPencil, action: () => onRenameStart("folder", folder._id) },
+    {
+      label: folder.locked ? "Unlock" : "Lock",
+      icon: folder.locked ? LuLockOpen : LuLock,
+      action: () => onToggleLock("folder", folder._id, !folder.locked),
+    },
     { label: "Delete Folder", icon: LuTrash2, danger: true, action: () => onDeleteFolder(folder._id, folder.name) },
   ];
 
@@ -388,6 +397,11 @@ export default function Sidebar({
         }),
     },
     { label: "Rename", icon: LuPencil, action: () => onRenameStart("note", note._id) },
+    {
+      label: note.locked ? "Unlock" : "Lock",
+      icon: note.locked ? LuLockOpen : LuLock,
+      action: () => onToggleLock("note", note._id, !note.locked),
+    },
     { label: "Delete Note", icon: LuTrash2, danger: true, action: () => onDeleteNote(note._id, note.title) },
   ];
 
@@ -401,14 +415,14 @@ export default function Sidebar({
 
   const iconBtn =
     "flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-200";
-  const smartSortBtn = (
+  const autoSortBtn = (
     <button
       onClick={onSortAll}
-      disabled={sorting !== null || totalUnfiled === 0}
+      disabled={sorting !== null || totalUnsorted === 0}
       title={
         sorting
           ? `Sorting ${sorting.done}/${sorting.total}...`
-          : `Smart Sort${totalUnfiled > 0 ? ` (${totalUnfiled} unfiled)` : ""}`
+          : `Auto Sort${totalUnsorted > 0 ? ` (${totalUnsorted} unsorted)` : ""}`
       }
       className={`flex h-7 w-7 items-center justify-center rounded-lg ${acc.solid} disabled:cursor-default ${
         sorting ? "" : "disabled:opacity-40"
@@ -429,7 +443,7 @@ export default function Sidebar({
           <div className="flex shrink-0 items-center gap-1">
             {compact ? (
               <>
-                {smartSortBtn}
+                {autoSortBtn}
                 <button
                   onClick={openCompactMenu}
                   title="Files menu"
@@ -467,7 +481,7 @@ export default function Sidebar({
                 >
                   {allOpen ? <LuChevronsDownUp size={15} /> : <LuChevronsUpDown size={15} />}
                 </button>
-                {smartSortBtn}
+                {autoSortBtn}
               </>
             )}
           </div>
@@ -676,13 +690,13 @@ export default function Sidebar({
                 onFolderDrop={handleFolderDrop}
               />
             ))}
-            {(unfiled.length > 0 || unfiledFiles.length > 0) && (
+            {(unsorted.length > 0 || unsortedFiles.length > 0) && (
               <div className="mt-2">
-                <p className="px-2 pb-1 text-xs text-neutral-500">Unfiled</p>
-                {unfiled.map((n) => (
+                <p className="px-2 pb-1 text-xs text-neutral-500">Unsorted</p>
+                {unsorted.map((n) => (
                   <NoteRow key={n._id} note={n} selected={n._id === selectedNoteId} onSelect={onSelectNote} onMenu={(e, note) => openMenu(e, noteMenu(note))} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameNote} onRenameCancel={onRenameCancel} onDragStart={(e) => startDrag(e, { kind: "note", id: n._id })} revealN={reveal?.n} />
                 ))}
-                {unfiledFiles.map((f) => (
+                {unsortedFiles.map((f) => (
                   <FileRow key={f._id} file={f} selected={f._id === selectedFileId} onSelect={onSelectFile} onMenu={(e, file) => openMenu(e, fileMenu(file))} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameFile} onRenameCancel={onRenameCancel} onDragStart={(e) => startDrag(e, { kind: "file", id: f._id })} revealN={reveal?.n} />
                 ))}
               </div>
@@ -787,6 +801,7 @@ function FolderNode({
         ) : (
           <span className="flex-1 truncate text-sm font-medium text-neutral-200">{folder.name}</span>
         )}
+        {folder.locked && <LuLock size={12} className="shrink-0 text-neutral-500" />}
         <span className="text-xs text-neutral-600">{notes.length + fileList.length}</span>
       </div>
 
@@ -878,6 +893,7 @@ function NoteRow({ note, selected, onSelect, onMenu, renaming, onRenameStart, on
     >
       <LuFileText size={14} className="shrink-0 text-neutral-500" />
       <span className="truncate">{note.title}</span>
+      {note.locked && <LuLock size={12} className="ml-auto shrink-0 text-neutral-500" />}
     </button>
   );
 }

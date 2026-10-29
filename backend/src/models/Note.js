@@ -19,6 +19,7 @@ const noteSchema = new Schema(
     tags: { type: [String], default: [] },
     attachments: { type: [attachmentSchema], default: [] },
     aiSummary: { type: String, default: "" }, // filled by AI when organizing
+    locked: { type: Boolean, default: false }, // locked notes are skipped by AI sorting
   },
   { timestamps: true }
 );

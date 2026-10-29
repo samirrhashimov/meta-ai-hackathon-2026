@@ -120,6 +120,40 @@ export async function classifyNote(note, folders, creds) {
   return out;
 }
 
+// Locking: a locked note, or anything filed inside a locked folder, is
+// invisible to AI sorting. Locked folders (and everything under them) are
+// never filing targets either.
+async function folderChainLocked(folderId) {
+  let cur = folderId ? await Folder.findById(folderId).select("parentId locked") : null;
+  while (cur) {
+    if (cur.locked) return true;
+    cur = cur.parentId ? await Folder.findById(cur.parentId).select("parentId locked") : null;
+  }
+  return false;
+}
+
+// Splits folders into AI filing targets, excluding locked folders and their
+// whole subtrees. Returns { targets, targetIds } for the classifier and the
+// same-name dedupe query below.
+function filingTargets(folders) {
+  const kids = new Map();
+  for (const f of folders) {
+    const p = f.parentId ? String(f.parentId) : null;
+    if (!kids.has(p)) kids.set(p, []);
+    kids.get(p).push(String(f._id));
+  }
+  const excluded = new Set();
+  const stack = folders.filter((f) => f.locked).map((f) => String(f._id));
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (excluded.has(id)) continue;
+    excluded.add(id);
+    for (const k of kids.get(id) || []) stack.push(k);
+  }
+  const targets = folders.filter((f) => !excluded.has(String(f._id)));
+  return { targets, targetIds: targets.map((f) => f._id) };
+}
+
 // Files a note with AI: picks/creates a folder, writes tags and a summary.
 export async function organizeNote(noteId, creds) {
   const note = await Note.findById(noteId);
@@ -128,15 +162,25 @@ export async function organizeNote(noteId, creds) {
     err.status = 404;
     throw err;
   }
-  const folders = await Folder.find().sort({ createdAt: 1 });
-  const result = await classifyNote(note, folders, creds);
+  if (note.locked) {
+    const err = new Error("Note is locked");
+    err.status = 423;
+    throw err;
+  }
+  if (note.folderId && (await folderChainLocked(note.folderId))) {
+    await note.populate("folderId", "name");
+    return { note, folder: note.folderId, created: false, skipped: "locked" };
+  }
+  const { targets, targetIds } = filingTargets(await Folder.find().sort({ createdAt: 1 }));
+  const result = await classifyNote(note, targets, creds);
 
   let folder = null;
   let created = false;
   if (result.folderId) folder = await Folder.findById(result.folderId);
   if (!folder) {
-    // Don't duplicate a folder with the same name.
-    folder = await Folder.findOne({ name: result.newFolderName });
+    // Don't duplicate a folder with the same name (among filing targets;
+    // a same-named locked folder must not receive new notes).
+    folder = await Folder.findOne({ name: result.newFolderName, _id: { $in: targetIds } });
     if (!folder) {
       folder = await Folder.create({ name: result.newFolderName });
       created = true;
@@ -223,15 +267,21 @@ export async function organizeFile(fileId, creds) {
     err.status = 404;
     throw err;
   }
-  const folders = await Folder.find().sort({ createdAt: 1 });
+  if (file.folderId && (await folderChainLocked(file.folderId))) {
+    const folder = await Folder.findById(file.folderId);
+    const plain = file.toObject();
+    delete plain.data;
+    return { file: plain, folder, created: false, skipped: "locked" };
+  }
+  const { targets, targetIds } = filingTargets(await Folder.find().sort({ createdAt: 1 }));
   let hint = `Name: ${file.name}\nType: ${file.mimeType || "unknown"}\nSize: ${file.size || 0} bytes`;
   if ((file.mimeType || "").startsWith("text/") && file.data) {
     hint += `\nContent:\n${file.data.toString("utf8").slice(0, 2000)}`;
   }
-  const list = folders.map((f) => `- ${f._id}: ${f.name}`).join("\n") || "(no folders)";
+  const list = targets.map((f) => `- ${f._id}: ${f.name}`).join("\n") || "(no folders)";
   const result = await chatJson(FILE_SYSTEM, `Folders:\n${list}\n\n${hint}`, creds);
   // Safety: the AI may return a made-up id, so verify it.
-  if (result.folderId && !folders.some((f) => String(f._id) === String(result.folderId))) {
+  if (result.folderId && !targets.some((f) => String(f._id) === String(result.folderId))) {
     result.folderId = null;
     if (!result.newFolderName) result.newFolderName = "General";
   }
@@ -241,8 +291,8 @@ export async function organizeFile(fileId, creds) {
   let created = false;
   if (result.folderId) folder = await Folder.findById(result.folderId);
   if (!folder) {
-    // Don't duplicate a folder with the same name.
-    folder = await Folder.findOne({ name: result.newFolderName });
+    // Don't duplicate a folder with the same name (locked folders excluded).
+    folder = await Folder.findOne({ name: result.newFolderName, _id: { $in: targetIds } });
     if (!folder) {
       folder = await Folder.create({ name: result.newFolderName });
       created = true;

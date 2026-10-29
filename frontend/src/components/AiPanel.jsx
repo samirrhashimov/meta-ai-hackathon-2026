@@ -12,8 +12,8 @@ const SUGGESTIONS = [
   {
     icon: LuFolderPlus,
     label: "Sort into folders",
-    desc: "File everything unfiled",
-    prompt: "File my unfiled notes into folders.",
+    desc: "File everything unsorted",
+    prompt: "File my unsorted notes into folders.",
   },
   {
     icon: LuSearch,

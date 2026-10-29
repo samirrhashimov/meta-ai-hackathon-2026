@@ -79,6 +79,8 @@ export default function App() {
   const [draggingPane, setDraggingPane] = useState(false); // suspends width transition mid-drag
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem("ui.rightOpen") !== "false");
   const [sorting, setSorting] = useState(null); // { done, total } while AI sorts all
+  const [sortConfirm, setSortConfirm] = useState(false); // Auto Sort warning modal
+  const [sortDontShow, setSortDontShow] = useState(false); // its "don't show again"
   const [renaming, setRenaming] = useState(null); // { kind: 'note'|'folder', id } | null
 
   useEffect(() => {
@@ -267,17 +269,21 @@ export default function App() {
   function handleNewNote(folderId = null) {
     run(async () => {
       // Creation stays instant: the note is saved with a plain insert first and
-      // the UI updates right away. AI filing happens after the rename, when the
-      // note has a real title worth classifying (see handleRenameNote).
+      // the UI updates right away. AI filing starts in the background at once
+      // (so untouched "New Note"s get filed too) and runs again after the
+      // rename, when the note has a real title worth classifying.
       const note = await api.createNote({ title: "New Note", folderId });
       setNotes((prev) => [note, ...prev]);
       openTab(note._id);
       setRenaming({ kind: "note", id: note._id });
+      if (!folderId && settings.autoSort) autoSortNote(note._id, "New Note");
     });
   }
 
   // AI filing in the background: the UI stays instant, and a toast reports
-  // where the note landed with an Undo action.
+  // where the note landed with an Undo action. Failures surface in the error
+  // banner instead of vanishing silently, so a missing key or a dead AI
+  // service is visible right away.
   function autoSortNote(id, title) {
     api
       .organize(id)
@@ -295,7 +301,7 @@ export default function App() {
           });
         }
       })
-      .catch(() => {});
+      .catch((e) => setError(`Auto Sort failed (${e.message}). Check Settings → API Connection.`));
   }
 
   function handleRenameNote(id, title) {
@@ -305,12 +311,13 @@ export default function App() {
       setNotes((prev) => prev.map((n) => (n._id === id ? updated : n)));
       // Auto-sort runs in the background after the rename, so the field closes
       // instantly and the AI files the note by its real title, not "New Note".
+      // Locked notes are never auto-sorted.
       const folderId = updated.folderId?._id || updated.folderId || null;
-      if (settings.autoSort && !folderId) autoSortNote(id, updated.title);
+      if (settings.autoSort && !folderId && !updated.locked) autoSortNote(id, updated.title);
     });
   }
 
-  // Undo an AI filing from the toast: the note goes back to unfiled, and an
+  // Undo an AI filing from the toast: the note goes back to unsorted, and an
   // AI-created folder is removed when it stayed empty.
   function undoAutoSort() {
     const t = toast;
@@ -335,7 +342,7 @@ export default function App() {
   }
 
   // Drag-and-drop move: a note or folder dropped onto a folder (or the empty
-  // tree area for top level / unfiled). Invalid folder moves throw to the banner.
+  // tree area for top level / unsorted). Invalid folder moves throw to the banner.
   function handleMove(kind, id, target) {
     run(async () => {
       if (kind === "note") {
@@ -392,24 +399,56 @@ export default function App() {
     return run(async () => {
       const updated = await api.updateNote(id, payload);
       setNotes((prev) => prev.map((n) => (n._id === id ? updated : n)));
-      // Auto-sort: an unfiled note is filed by AI right after a manual save.
+      // Auto-sort: an unsorted note is filed by AI right after a manual save.
+      // Locked notes are never auto-sorted.
       const folderId = updated.folderId?._id || updated.folderId || null;
-      if (settings.autoSort && !folderId) autoSortNote(id, updated.title);
+      if (settings.autoSort && !folderId && !updated.locked) autoSortNote(id, updated.title);
     });
   }
 
-  // Files every unfiled note and upload into folders with AI, one by one.
+  // The sidebar Auto Sort button asks for confirmation first (unless the
+  // user checked "don't show again"), because it moves many items at once.
+  function requestSortAll() {
+    if (sorting) return;
+    if (localStorage.getItem("ui.autoSortAsk") === "false") handleSortAll();
+    else {
+      setSortDontShow(false);
+      setSortConfirm(true);
+    }
+  }
+
+  function confirmSortAll() {
+    if (sortDontShow) localStorage.setItem("ui.autoSortAsk", "false");
+    setSortConfirm(false);
+    handleSortAll();
+  }
+
+  // Toggles the AI-sorting lock on a note or folder. Locked items are
+  // invisible to every auto-sort path (single, bulk, and creation).
+  function handleToggleLock(kind, id, locked) {
+    run(async () => {
+      if (kind === "note") {
+        const updated = await api.updateNote(id, { locked });
+        setNotes((prev) => prev.map((n) => (n._id === id ? updated : n)));
+      } else {
+        const updated = await api.updateFolder(id, { locked });
+        setFolders((prev) => prev.map((f) => (f._id === id ? updated : f)));
+      }
+    });
+  }
+
+  // Files every unsorted, unlocked note and upload into folders with AI, one by one.
   function handleSortAll() {
-    const unfiledNotes = notes.filter((n) => !n.folderId);
-    const unfiledFiles = files.filter((f) => !f.folderId);
-    const total = unfiledNotes.length + unfiledFiles.length;
+    const unsortedNotes = notes.filter((n) => !n.folderId && !n.locked);
+    const unsortedFiles = files.filter((f) => !f.folderId);
+    const total = unsortedNotes.length + unsortedFiles.length;
     if (total === 0 || sorting) return;
     run(async () => {
       setSorting({ done: 0, total });
       let failed = 0;
       const step = () => setSorting((s) => s && { done: s.done + 1, total: s.total });
       try {
-        for (const n of unfiledNotes) {
+        for (const n of unsortedNotes) {
           try {
             await api.organize(n._id);
           } catch {
@@ -417,7 +456,7 @@ export default function App() {
           }
           step();
         }
-        for (const f of unfiledFiles) {
+        for (const f of unsortedFiles) {
           try {
             await api.organizeFile(f._id);
           } catch {
@@ -671,7 +710,8 @@ export default function App() {
           onRenameFile={handleRenameFile}
           onRenameCancel={() => setRenaming(null)}
           onMove={handleMove}
-          onSortAll={handleSortAll}
+          onSortAll={requestSortAll}
+          onToggleLock={handleToggleLock}
           sorting={sorting}
         />
         </div>
@@ -925,7 +965,7 @@ export default function App() {
               <h3 className="text-sm font-semibold text-neutral-100">Delete folder</h3>
               <p className="mt-1 text-sm text-neutral-400">
                 "{deletingFolder.name}" will be deleted. Its contents are kept, they become
-                unfiled. Are you sure?
+                unsorted. Are you sure?
               </p>
               <div className="mt-4 flex justify-end gap-2">
                 <button
@@ -980,6 +1020,56 @@ export default function App() {
         </Modal>
       )}
 
+      {/* Auto Sort confirm: bulk filing moves many items at once */}
+      {sortConfirm && (
+        <Modal onClose={() => setSortConfirm(false)}>
+          {(close) => {
+            const n = notes.filter((x) => !x.folderId && !x.locked).length;
+            const f = files.filter((x) => !x.folderId).length;
+            return (
+              <div className="glass w-full max-w-sm rounded-2xl p-5">
+                <h3 className="text-sm font-semibold text-neutral-100">Auto Sort everything?</h3>
+                <p className="mt-1 text-sm text-neutral-400">
+                  The AI will move {n} unsorted note{n === 1 ? "" : "s"} and {f} unsorted
+                  file{f === 1 ? "" : "s"} into folders, creating new folders when nothing
+                  fits. Notes already in folders stay untouched, and locked notes and
+                  locked folders are always left alone.
+                </p>
+                <p className="mt-2 text-sm text-neutral-400">
+                  Everything moves at once, so give important notes a quick check
+                  afterwards.
+                </p>
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-neutral-300">
+                  <input
+                    type="checkbox"
+                    checked={sortDontShow}
+                    onChange={(e) => setSortDontShow(e.target.checked)}
+                    style={{ accentColor: "var(--acc)" }}
+                    className="h-4 w-4"
+                  />
+                  Don&apos;t show again
+                </label>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    onClick={close}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                  >
+                    Cancel <Kbd>Esc</Kbd>
+                  </button>
+                  <button
+                    data-modal-primary
+                    onClick={confirmSortAll}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${currentAccent().solid}`}
+                  >
+                    Continue <Kbd>Enter</Kbd>
+                  </button>
+                </div>
+              </div>
+            );
+          }}
+        </Modal>
+      )}
+
       {/* Error banner */}
       {error && (
         <div className="fixed bottom-4 left-1/2 flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-lg border border-red-400/30 bg-[#17171c] px-4 py-2 text-sm text-red-200 shadow-xl">
@@ -999,7 +1089,7 @@ export default function App() {
           <LuFolderCheck size={16} className={`shrink-0 ${currentAccent().text}`} />
           <span className="min-w-0">
             <span className="block truncate text-neutral-200">
-              Smart Sort moved “{toast.title}” to {toast.folder}
+              Auto Sort moved “{toast.title}” to {toast.folder}
             </span>
             <span className="block text-xs text-neutral-500">
               Turn off in Settings → Automation.

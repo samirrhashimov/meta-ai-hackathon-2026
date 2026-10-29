@@ -5,6 +5,7 @@ const folderSchema = new Schema(
   {
     name: { type: String, required: [true, "Folder name is required"], trim: true },
     parentId: { type: Schema.Types.ObjectId, ref: "Folder", default: null },
+    locked: { type: Boolean, default: false }, // locked folders are skipped by AI sorting
   },
   { timestamps: true }
 );

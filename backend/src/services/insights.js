@@ -20,7 +20,7 @@ export async function computeStats() {
     { $sort: { count: -1 } },
   ]);
   const perFolder = perFolderRaw.map((r) => ({
-    name: r._id ? nameOf[String(r._id)] || "(deleted)" : "Unfiled",
+    name: r._id ? nameOf[String(r._id)] || "(deleted)" : "Unsorted",
     count: r.count,
   }));
   const unfiledCount = perFolderRaw.find((r) => r._id === null)?.count || 0;

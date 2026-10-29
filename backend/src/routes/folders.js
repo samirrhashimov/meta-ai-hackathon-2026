@@ -59,6 +59,7 @@ router.put("/:id", async (req, res, next) => {
       if (!req.body.name.trim()) return res.status(400).json({ error: "Folder name cannot be empty" });
       updates.name = req.body.name.trim();
     }
+    if (req.body.locked !== undefined) updates.locked = !!req.body.locked;
     if (req.body.parentId !== undefined) {
       const parentId = req.body.parentId;
       if (parentId !== null) {

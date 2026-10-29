@@ -77,6 +77,7 @@ router.put("/:id", async (req, res, next) => {
     }
     if (req.body.content !== undefined) updates.content = req.body.content;
     if (req.body.tags !== undefined) updates.tags = req.body.tags;
+    if (req.body.locked !== undefined) updates.locked = !!req.body.locked;
     if (req.body.attachments !== undefined) updates.attachments = req.body.attachments;
     if (req.body.folderId !== undefined) {
       const folderId = req.body.folderId;

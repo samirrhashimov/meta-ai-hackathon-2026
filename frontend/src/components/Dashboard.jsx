@@ -41,7 +41,7 @@ export default function Dashboard() {
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatCard label="Notes" value={stats.totalNotes} />
         <StatCard label="Folders" value={stats.totalFolders} />
-        <StatCard label="Unfiled" value={stats.unfiledCount} />
+        <StatCard label="Unsorted" value={stats.unfiledCount} />
         <StatCard label="Attachments" value={stats.attachmentsTotal} />
       </div>
 
