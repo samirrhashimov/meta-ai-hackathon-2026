@@ -4,6 +4,7 @@ import {
   LuArrowDownAZ,
   LuArrowDownWideNarrow,
   LuArrowUpZA,
+  LuCheck,
   LuChevronDown,
   LuChevronRight,
   LuChevronsDownUp,
@@ -16,8 +17,11 @@ import {
   LuFolder,
   LuFolderOpen,
   LuFolderPlus,
+  LuFolderSymlink,
   LuHistory,
+  LuInbox,
   LuInfo,
+  LuListChecks,
   LuLoaderCircle,
   LuLock,
   LuLockOpen,
@@ -29,6 +33,7 @@ import {
   LuWandSparkles,
 } from "react-icons/lu";
 import { fileContentUrl } from "../api";
+import { shortcutTitle } from "../shortcuts";
 import { currentAccent } from "../accent";
 import { FileTypeIcon } from "./FileViewer";
 import Modal, { Kbd } from "./Modal";
@@ -94,8 +99,187 @@ export default function Sidebar({
   onMove,
   onSortAll,
   onToggleLock,
+  onBulkDelete,
+  onBulkMove,
+  onBulkLock,
+  onBulkSort,
   sorting,
 }) {
+  // Bulk selection: array of "kind:id" (kind is note|file). Plain click opens
+  // and selects one; Ctrl/Cmd+click toggles; Shift+click selects a range
+  // inside the same list. Right-click on a selected row opens bulk actions.
+  // Selection mode (the header button) makes plain clicks select instead of
+  // opening — a Shift+click alternative.
+  const [sel, setSel] = useState([]);
+  const [selectMode, setSelectMode] = useState(false);
+  const anchorRef = useRef(null); // { listId, index } for Shift+click ranges
+  // True when the selection was an explicit toggle (Ctrl/Cmd/Shift click or
+  // selection mode) rather than just opening a note. The sync effect below
+  // only rewrites non-explicit singletons, so closing or switching tabs never
+  // leaves a non-open file highlighted — only the actively viewed file shows.
+  const explicitSel = useRef(false);
+  // Strict double-click for rename: two clicks on the same row within 350ms.
+  // Slower pairs count as two single clicks (open/select), so rename no
+  // longer pops up accidentally. Replaces the browser dblclick below.
+  const clickRef = useRef({ key: null, time: 0 });
+  const DOUBLE_MS = 350;
+  function isDouble(key) {
+    const now = Date.now();
+    const last = clickRef.current;
+    clickRef.current = { key, time: now };
+    return !!last.key && last.key === key && now - last.time < DOUBLE_MS;
+  }
+  const selSet = new Set(sel);
+  const keyOf = (kind, id) => `${kind}:${id}`;
+
+  function clearSel() {
+    setSel([]);
+    anchorRef.current = null;
+    explicitSel.current = false;
+  }
+
+  // Esc clears the selection (modals handle their own Escape first),
+  // then exits selection mode when nothing is selected.
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key !== "Escape" || document.querySelector(".modal-backdrop")) return;
+      if (sel.length > 0) clearSel();
+      else if (selectMode) setSelectMode(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sel.length, selectMode]);
+
+  // The sidebar highlights only the actively viewed file: a non-explicit
+  // singleton follows the active tab (closing or switching tabs never leaves
+  // a non-open file highlighted), while deliberate multi-selections stay.
+  useEffect(() => {
+    if (selectMode) return;
+    setSel((prev) => {
+      if (prev.length !== 1 || explicitSel.current) return prev;
+      const key = selectedFileId
+        ? `file:${selectedFileId}`
+        : selectedNoteId && !String(selectedNoteId).startsWith("file:")
+          ? `note:${selectedNoteId}`
+          : null;
+      if (!key) return [];
+      return prev[0] === key ? prev : [key];
+    });
+  }, [selectedNoteId, selectedFileId, selectMode]);
+
+  // Click on a row: open on plain click, toggle on Ctrl/Cmd, range on Shift.
+  function handleRowClick(e, kind, id, listId, index, siblings, openFn) {
+    if (e.shiftKey && anchorRef.current && anchorRef.current.listId === listId) {
+      e.preventDefault();
+      const [a, b] = [anchorRef.current.index, index].sort((x, y) => x - y);
+      const range = siblings.slice(a, b + 1);
+      setSel((prev) => [...new Set([...prev, ...range])]);
+      anchorRef.current = { listId, index };
+      explicitSel.current = true;
+      return;
+    }
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const k = keyOf(kind, id);
+      setSel((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+      anchorRef.current = { listId, index };
+      explicitSel.current = true;
+      return;
+    }
+    if (selectMode) {
+      // Selection mode: plain clicks toggle instead of opening.
+      e.preventDefault();
+      const k = keyOf(kind, id);
+      setSel((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+      anchorRef.current = { listId, index };
+      explicitSel.current = true;
+      return;
+    }
+    anchorRef.current = { listId, index };
+    explicitSel.current = false;
+    const k = keyOf(kind, id);
+    if (isDouble(k)) {
+      // Fast second click on the same row: rename instead of re-opening.
+      setSel([k]);
+      onRenameStart(kind, id);
+      return;
+    }
+    setSel([k]);
+    openFn(id);
+  }
+
+  // Right-click: a selected row in a multi-selection opens bulk actions.
+  function handleRowMenu(e, kind, item, singleMenu) {
+    if (sel.length > 1 && selSet.has(keyOf(kind, item._id))) {
+      openMenu(e, bulkMenuItems());
+      return;
+    }
+    anchorRef.current = null;
+    setSel([keyOf(kind, item._id)]);
+    openMenu(e, singleMenu(item));
+  }
+
+  function selItems() {
+    return sel
+      .map((k) => {
+        const i = k.indexOf(":");
+        const kind = k.slice(0, i);
+        const id = k.slice(i + 1);
+        const found =
+          kind === "note" ? notes.find((n) => String(n._id) === id) : (files || []).find((f) => String(f._id) === id);
+        return found ? { kind, id, label: kind === "note" ? found.title : found.name, locked: !!found.locked, folderId: found.folderId?._id || found.folderId || null } : null;
+      })
+      .filter(Boolean);
+  }
+
+  function bulkMenuItems() {
+    const items = selItems();
+    const sortable = items.filter((x) => x.kind === "note" && !x.folderId && !x.locked);
+    const lockable = items.filter((x) => x.kind === "note");
+    const allLocked = lockable.length > 0 && lockable.every((x) => x.locked);
+    return [
+      {
+        label: "Move to",
+        icon: LuFolderSymlink,
+        subItems: [
+          { label: "Unsorted", icon: LuInbox, action: () => onBulkMove(items, null).then(clearSel) },
+          ...folders.map((f) => ({
+            label: f.name,
+            icon: LuFolder,
+            action: () => onBulkMove(items, f._id).then(clearSel),
+          })),
+        ],
+      },
+      ...(sortable.length > 0
+        ? [{ label: `Auto Sort ${sortable.length}`, icon: LuWandSparkles, action: () => onBulkSort(sortable.map((x) => x.id)).then(clearSel) }]
+        : []),
+      ...(lockable.length > 0
+        ? [{ label: allLocked ? "Unlock" : "Lock", icon: allLocked ? LuLockOpen : LuLock, action: () => onBulkLock(lockable, !allLocked).then(clearSel) }]
+        : []),
+      {
+        label: `Delete ${items.length} item${items.length === 1 ? "" : "s"}`,
+        icon: LuTrash2,
+        danger: true,
+        action: () => onBulkDelete(items).then(clearSel),
+      },
+    ];
+  }
+
+  // Header bulk button: with a selection it opens bulk actions; otherwise
+  // it toggles selection mode (plain clicks select instead of opening),
+  // a Shift+click alternative. Active while selecting.
+  function onBulkButton(e) {
+    if (selectMode) {
+      setSelectMode(false);
+      clearSel();
+      return;
+    }
+    if (sel.length > 0) {
+      openMenu(e, bulkMenuItems());
+      return;
+    }
+    setSelectMode(true);
+  }
   const fileInputRef = useRef(null);
   const rootRef = useRef(null);
   const acc = currentAccent();
@@ -419,11 +603,12 @@ export default function Sidebar({
     <button
       onClick={onSortAll}
       disabled={sorting !== null || totalUnsorted === 0}
-      title={
+      title={shortcutTitle(
         sorting
           ? `Sorting ${sorting.done}/${sorting.total}...`
-          : `Auto Sort${totalUnsorted > 0 ? ` (${totalUnsorted} unsorted)` : ""}`
-      }
+          : `Auto Sort${totalUnsorted > 0 ? ` (${totalUnsorted} unsorted)` : ""}`,
+        "auto-sort"
+      )}
       className={`flex h-7 w-7 items-center justify-center rounded-lg ${acc.solid} disabled:cursor-default ${
         sorting ? "" : "disabled:opacity-40"
       }`}
@@ -435,6 +620,17 @@ export default function Sidebar({
       )}
     </button>
   );
+  const bulkBtn = (
+    <button
+      onClick={onBulkButton}
+      className={`${iconBtn} ${
+        selectMode ? acc.solid : sel.length > 0 ? acc.softText : ""
+      }`}
+      title={selectMode ? "Exit selection mode" : "Select Multiple"}
+    >
+      <LuListChecks size={15} color={selectMode ? "#000" : undefined} />
+    </button>
+  );
 
   return (
     <div ref={rootRef} className="flex h-full flex-col" onContextMenu={(e) => openMenu(e, blankMenu)}>
@@ -443,6 +639,7 @@ export default function Sidebar({
           <div className="flex shrink-0 items-center gap-1">
             {compact ? (
               <>
+                {bulkBtn}
                 {autoSortBtn}
                 <button
                   onClick={openCompactMenu}
@@ -454,15 +651,15 @@ export default function Sidebar({
               </>
             ) : (
               <>
-                <button onClick={() => onNewNote(null)} title="New note" className={iconBtn}>
+                <button onClick={() => onNewNote(null)} title={shortcutTitle("New note", "new-note")} className={iconBtn}>
                   <LuPlus size={15} />
                 </button>
-                <button onClick={() => onNewFolder(null)} title="New folder" className={iconBtn}>
+                <button onClick={() => onNewFolder(null)} title={shortcutTitle("New folder", "new-folder")} className={iconBtn}>
                   <LuFolderPlus size={15} />
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  title="Upload file"
+                  title={shortcutTitle("Upload file", "upload")}
                   className={iconBtn}
                 >
                   <LuUpload size={15} />
@@ -481,6 +678,7 @@ export default function Sidebar({
                 >
                   {allOpen ? <LuChevronsDownUp size={15} /> : <LuChevronsUpDown size={15} />}
                 </button>
+                {bulkBtn}
                 {autoSortBtn}
               </>
             )}
@@ -521,6 +719,7 @@ export default function Sidebar({
           {menu.items.map((item) => (
             <button
               key={item.label}
+              disabled={item.disabled}
               onMouseEnter={(e) => {
                 if (item.subItems) openSub(e, item.subItems, subPinned);
                 else if (!subPinned) setSubMenu(null);
@@ -533,7 +732,7 @@ export default function Sidebar({
                 closeMenu();
                 item.action();
               }}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left ${
+              className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left disabled:cursor-default disabled:opacity-50 ${
                 item.danger
                   ? "danger-text hover:bg-red-400/10"
                   : item.active
@@ -671,8 +870,13 @@ export default function Sidebar({
                 onSelectNote={onSelectNote}
                 onSelectFile={onSelectFile}
                 onFolderMenu={(e, folder) => openMenu(e, folderMenu(folder))}
-                onNoteMenu={(e, note) => openMenu(e, noteMenu(note))}
-                onFileMenu={(e, file) => openMenu(e, fileMenu(file))}
+                selSet={selSet}
+                selectMode={selectMode}
+                isDouble={isDouble}
+                onRowClick={handleRowClick}
+                onRowMenu={handleRowMenu}
+                noteMenu={noteMenu}
+                fileMenu={fileMenu}
                 renaming={renaming}
                 onRenameStart={onRenameStart}
                 onRenameNote={onRenameNote}
@@ -693,11 +897,11 @@ export default function Sidebar({
             {(unsorted.length > 0 || unsortedFiles.length > 0) && (
               <div className="mt-2">
                 <p className="px-2 pb-1 text-xs text-neutral-500">Unsorted</p>
-                {unsorted.map((n) => (
-                  <NoteRow key={n._id} note={n} selected={n._id === selectedNoteId} onSelect={onSelectNote} onMenu={(e, note) => openMenu(e, noteMenu(note))} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameNote} onRenameCancel={onRenameCancel} onDragStart={(e) => startDrag(e, { kind: "note", id: n._id })} revealN={reveal?.n} />
+                {unsorted.map((n, i, arr) => (
+                  <NoteRow key={n._id} note={n} selected={n._id === selectedNoteId} inSel={selSet.has(`note:${n._id}`)} selectMode={selectMode} onRowClick={(e) => handleRowClick(e, "note", n._id, "n:unsorted", i, arr.map((x) => `note:${x._id}`), onSelectNote)} onRowMenu={(e) => handleRowMenu(e, "note", n, noteMenu)} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameNote} onRenameCancel={onRenameCancel} onDragStart={(e) => startDrag(e, { kind: "note", id: n._id })} revealN={reveal?.n} />
                 ))}
-                {unsortedFiles.map((f) => (
-                  <FileRow key={f._id} file={f} selected={f._id === selectedFileId} onSelect={onSelectFile} onMenu={(e, file) => openMenu(e, fileMenu(file))} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameFile} onRenameCancel={onRenameCancel} onDragStart={(e) => startDrag(e, { kind: "file", id: f._id })} revealN={reveal?.n} />
+                {unsortedFiles.map((f, i, arr) => (
+                  <FileRow key={f._id} file={f} selected={f._id === selectedFileId} inSel={selSet.has(`file:${f._id}`)} selectMode={selectMode} onRowClick={(e) => handleRowClick(e, "file", f._id, "f:unsorted", i, arr.map((x) => `file:${x._id}`), onSelectFile)} onRowMenu={(e) => handleRowMenu(e, "file", f, fileMenu)} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameFile} onRenameCancel={onRenameCancel} onDragStart={(e) => startDrag(e, { kind: "file", id: f._id })} revealN={reveal?.n} />
                 ))}
               </div>
             )}
@@ -722,8 +926,13 @@ function FolderNode({
   onSelectNote,
   onSelectFile,
   onFolderMenu,
-  onNoteMenu,
-  onFileMenu,
+  selSet,
+  selectMode,
+  isDouble,
+  onRowClick,
+  onRowMenu,
+  noteMenu,
+  fileMenu,
   renaming,
   onRenameStart,
   onRenameNote,
@@ -767,10 +976,12 @@ function FolderNode({
         onDragOver={(e) => onFolderDragOver(e, folder._id)}
         onDragLeave={onDragLeaveRow}
         onDrop={(e) => onFolderDrop(e, folder._id)}
-        onClick={() => setOpen(!open)}
-        onDoubleClick={() => {
-          setOpen(true);
-          onRenameStart("folder", folder._id);
+        onClick={() => {
+          // Fast double-click renames; a slower second click just toggles.
+          if (isDouble(`folder:${folder._id}`)) {
+            setOpen(true);
+            onRenameStart("folder", folder._id);
+          } else setOpen(!open);
         }}
         onContextMenu={(e) => onFolderMenu(e, folder)}
         className={`flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 hover:bg-white/5 ${
@@ -799,7 +1010,7 @@ function FolderNode({
             />
           </span>
         ) : (
-          <span className="flex-1 truncate text-sm font-medium text-neutral-200">{folder.name}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-200">{folder.name}</span>
         )}
         {folder.locked && <LuLock size={12} className="shrink-0 text-neutral-500" />}
         <span className="text-xs text-neutral-600">{notes.length + fileList.length}</span>
@@ -824,8 +1035,13 @@ function FolderNode({
               onSelectNote={onSelectNote}
               onSelectFile={onSelectFile}
               onFolderMenu={onFolderMenu}
-              onNoteMenu={onNoteMenu}
-              onFileMenu={onFileMenu}
+              selSet={selSet}
+              selectMode={selectMode}
+              isDouble={isDouble}
+              onRowClick={onRowClick}
+              onRowMenu={onRowMenu}
+              noteMenu={noteMenu}
+              fileMenu={fileMenu}
               renaming={renaming}
               onRenameStart={onRenameStart}
               onRenameNote={onRenameNote}
@@ -844,11 +1060,11 @@ function FolderNode({
             />
           ))}
           <div style={{ paddingLeft: `${24 + depth * 12}px` }}>
-            {notes.map((n) => (
-              <NoteRow key={n._id} note={n} selected={n._id === selectedNoteId} onSelect={onSelectNote} onMenu={onNoteMenu} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameNote} onRenameCancel={onRenameCancel} onDragStart={(e) => onDragStart(e, { kind: "note", id: n._id })} revealN={reveal?.n} />
+            {notes.map((n, i, arr) => (
+              <NoteRow key={n._id} note={n} selected={n._id === selectedNoteId} inSel={selSet.has(`note:${n._id}`)} selectMode={selectMode} onRowClick={(e) => onRowClick(e, "note", n._id, `n:${folder._id}`, i, arr.map((x) => `note:${x._id}`), onSelectNote)} onRowMenu={(e) => onRowMenu(e, "note", n, noteMenu)} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameNote} onRenameCancel={onRenameCancel} onDragStart={(e) => onDragStart(e, { kind: "note", id: n._id })} revealN={reveal?.n} />
             ))}
-            {fileList.map((f) => (
-              <FileRow key={f._id} file={f} selected={f._id === selectedFileId} onSelect={onSelectFile} onMenu={onFileMenu} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameFile} onRenameCancel={onRenameCancel} onDragStart={(e) => onDragStart(e, { kind: "file", id: f._id })} revealN={reveal?.n} />
+            {fileList.map((f, i, arr) => (
+              <FileRow key={f._id} file={f} selected={f._id === selectedFileId} inSel={selSet.has(`file:${f._id}`)} selectMode={selectMode} onRowClick={(e) => onRowClick(e, "file", f._id, `f:${folder._id}`, i, arr.map((x) => `file:${x._id}`), onSelectFile)} onRowMenu={(e) => onRowMenu(e, "file", f, fileMenu)} renaming={renaming} onRenameStart={onRenameStart} onRenameSubmit={onRenameFile} onRenameCancel={onRenameCancel} onDragStart={(e) => onDragStart(e, { kind: "file", id: f._id })} revealN={reveal?.n} />
             ))}
           </div>
         </div>
@@ -857,7 +1073,7 @@ function FolderNode({
   );
 }
 
-function NoteRow({ note, selected, onSelect, onMenu, renaming, onRenameStart, onRenameSubmit, onRenameCancel, onDragStart, revealN }) {
+function NoteRow({ note, selected, inSel, selectMode, onRowClick, onRowMenu, renaming, onRenameStart, onRenameSubmit, onRenameCancel, onDragStart, revealN }) {
   const acc = currentAccent();
   const isRenaming = renaming?.kind === "note" && renaming.id === note._id;
   const rowRef = useRef(null);
@@ -884,21 +1100,33 @@ function NoteRow({ note, selected, onSelect, onMenu, renaming, onRenameStart, on
       ref={rowRef}
       draggable
       onDragStart={onDragStart}
-      onClick={() => onSelect(note._id)}
-      onDoubleClick={() => onRenameStart("note", note._id)}
-      onContextMenu={(e) => onMenu(e, note)}
+      onClick={onRowClick}
+      onContextMenu={onRowMenu}
       className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm ${
-        selected ? `${acc.softBgStrong} ${acc.softText}` : "text-neutral-400 hover:bg-white/5"
+        selected
+          ? `${acc.softBgStrong} ${acc.softText}`
+          : inSel
+            ? `${acc.softBg} ${acc.softText}`
+            : "text-neutral-400 hover:bg-white/5"
       }`}
     >
+      {selectMode && (
+        <span
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+            inSel ? `${acc.solid} border-transparent` : "border-white/25"
+          }`}
+        >
+          {inSel && <LuCheck size={11} strokeWidth={3} />}
+        </span>
+      )}
       <LuFileText size={14} className="shrink-0 text-neutral-500" />
-      <span className="truncate">{note.title}</span>
-      {note.locked && <LuLock size={12} className="ml-auto shrink-0 text-neutral-500" />}
+      <span className="min-w-0 flex-1 truncate">{note.title}</span>
+      {note.locked && <LuLock size={12} className="shrink-0 text-neutral-500" />}
     </button>
   );
 }
 
-function FileRow({ file, selected, onSelect, onMenu, renaming, onRenameStart, onRenameSubmit, onRenameCancel, onDragStart, revealN }) {
+function FileRow({ file, selected, inSel, selectMode, onRowClick, onRowMenu, renaming, onRenameStart, onRenameSubmit, onRenameCancel, onDragStart, revealN }) {
   const acc = currentAccent();
   const isRenaming = renaming?.kind === "file" && renaming.id === file._id;
   const rowRef = useRef(null);
@@ -925,15 +1153,27 @@ function FileRow({ file, selected, onSelect, onMenu, renaming, onRenameStart, on
       ref={rowRef}
       draggable
       onDragStart={onDragStart}
-      onClick={() => onSelect(file._id)}
-      onDoubleClick={() => onRenameStart("file", file._id)}
-      onContextMenu={(e) => onMenu(e, file)}
+      onClick={onRowClick}
+      onContextMenu={onRowMenu}
       className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm ${
-        selected ? `${acc.softBgStrong} ${acc.softText}` : "text-neutral-400 hover:bg-white/5"
+        selected
+          ? `${acc.softBgStrong} ${acc.softText}`
+          : inSel
+            ? `${acc.softBg} ${acc.softText}`
+            : "text-neutral-400 hover:bg-white/5"
       }`}
     >
+      {selectMode && (
+        <span
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+            inSel ? `${acc.solid} border-transparent` : "border-white/25"
+          }`}
+        >
+          {inSel && <LuCheck size={11} strokeWidth={3} />}
+        </span>
+      )}
       <FileTypeIcon mime={file.mimeType} />
-      <span className="truncate">{file.name}</span>
+      <span className="min-w-0 flex-1 truncate">{file.name}</span>
     </button>
   );
 }

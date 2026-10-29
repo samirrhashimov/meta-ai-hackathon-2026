@@ -12,6 +12,7 @@ import {
 import { api } from "../api";
 import { ACCENT_PRESETS, currentAccent } from "../accent";
 import { DEFAULT_SETTINGS } from "../settings";
+import { SHORTCUTS } from "../shortcuts";
 import Modal, { Kbd } from "./Modal";
 
 function Section({ title, desc, children }) {
@@ -134,18 +135,7 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
         <div className="glass w-full max-w-lg overflow-hidden rounded-2xl">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
             <h3 className="text-sm font-semibold text-neutral-100">Settings</h3>
-            <span className="flex items-center gap-2">
-              <Kbd>Esc</Kbd>
-              <button
-                onClick={() => {
-                  onChange(DEFAULT_SETTINGS);
-                }}
-                title="Restore defaults"
-                className="rounded-lg px-2 py-1 text-xs text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
-              >
-                Reset all
-              </button>
-            </span>
+            <Kbd>Esc</Kbd>
           </div>
 
           <div className="max-h-[70vh] overflow-y-auto">
@@ -396,9 +386,30 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                 Key source: {keySource}. Settings live in this browser only.
               </p>
             </Section>
+
+            <Section
+              title="Keyboard"
+              desc="Global shortcuts. They work while typing too, except inside dialogs."
+            >
+              {SHORTCUTS.map((s) => (
+                <div key={s.id} className="flex items-center justify-between py-1">
+                  <span className="text-sm text-neutral-300">{s.label}</span>
+                  <Kbd>{s.display}</Kbd>
+                </div>
+              ))}
+            </Section>
           </div>
 
-          <div className="flex justify-end border-t border-white/10 px-5 py-3">
+          <div className="flex items-center justify-between border-t border-white/10 px-5 py-3">
+            <button
+              onClick={() => {
+                onChange(DEFAULT_SETTINGS);
+              }}
+              title="Restore all settings to defaults"
+              className="rounded-lg px-2 py-1.5 text-xs text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
+            >
+              Reset all
+            </button>
             <button
               onClick={onClose}
               className={`rounded-lg px-4 py-1.5 text-sm font-medium ${acc.solid}`}

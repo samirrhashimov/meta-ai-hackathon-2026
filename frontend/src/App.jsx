@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api } from "./api";
+import { api, fileContentUrl } from "./api";
+import { shortcutTitle } from "./shortcuts";
 import Sidebar from "./components/Sidebar";
 import NoteEditor from "./components/NoteEditor";
 import FileViewer, { FileTypeIcon } from "./components/FileViewer";
@@ -11,16 +12,17 @@ import Dashboard from "./components/Dashboard";
 import GraphView from "./components/GraphView";
 import SettingsModal from "./components/SettingsModal";
 import { loadSettings, saveSettings } from "./settings";
-import { LuFileText, LuFolderCheck, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
+import { LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuTrash2, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
 import { applyAccentVars, currentAccent } from "./accent";
 import logo from "./assets/flama_icon.png";
 import logoDark from "./assets/flama_icon_dark.png";
 
-function NavButton({ title, active, onClick, children, dim }) {
+function NavButton({ title, active, onClick, children, dim, buttonRef }) {
   const acc = currentAccent();
   return (
     <button
+      ref={buttonRef}
       title={title}
       onClick={onClick}
       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
@@ -48,10 +50,13 @@ export default function App() {
   const [deletingNote, setDeletingNote] = useState(null); // { id, title } awaiting delete confirm
   const [deletingFile, setDeletingFile] = useState(null); // { id, name } awaiting delete confirm
   const [deletingFolder, setDeletingFolder] = useState(null); // { id, name } awaiting delete confirm
+  const [bulkDeleting, setBulkDeleting] = useState(null); // [{ kind, id, label }] awaiting bulk delete
   const [searchOpen, setSearchOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false); // tags browser modal
   const [searchQ, setSearchQ] = useState("");
   const [searchAnchor, setSearchAnchor] = useState(null); // dropdown position under the button
+  const searchBtnRef = useRef(null); // navbar search button, for keyboard opening
+  const uploadRef = useRef(null); // hidden file picker for the upload shortcut
   const [view, setView] = useState("notes"); // notes | dashboard | graph
   const [settings, setSettingsState] = useState(loadSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -97,8 +102,19 @@ export default function App() {
   }, [rightOpen]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  // Filing toast: { key, message, noteId, folderId, created } — auto-dismisses.
+  // Operation toast: { key, icon, message, hint?, undo? } — auto-dismisses.
+  // undo is { label, run } where run() performs the reversal.
   const [toast, setToast] = useState(null);
+
+  function showToast(message, { icon = "sort", hint = "", undo = null } = {}) {
+    setToast({ key: Date.now(), icon, message, hint, undo });
+  }
+
+  function dismissToastAndRun() {
+    const u = toast?.undo;
+    setToast(null);
+    if (u) u.run();
+  }
 
   useEffect(() => {
     if (!toast) return;
@@ -118,6 +134,57 @@ export default function App() {
       .catch((e) => setError("Could not reach the backend (" + e.message + "). Is it running?"))
       .finally(() => setLoading(false));
   }, []);
+
+  // Global shortcuts (see shortcuts.js). Matching uses e.code (physical key)
+  // so alternative layouts keep working; AltGr (Ctrl+Alt) never matches the
+  // Alt-only combos. They stay active inside the note editor too.
+  // Re-subscribed every render so handlers never go stale.
+  useEffect(() => {
+    function onKey(e) {
+      if (document.querySelector(".modal-backdrop")) return; // dialogs own the keyboard
+      const mod = e.ctrlKey || e.metaKey;
+      const c = e.code;
+      if (!mod && e.altKey && !e.shiftKey && c === "KeyN") {
+        e.preventDefault();
+        handleNewNote();
+      } else if (!mod && e.altKey && e.shiftKey && c === "KeyN") {
+        e.preventDefault();
+        handleNewFolder(null);
+      } else if (!mod && e.altKey && !e.shiftKey && c === "KeyS") {
+        e.preventDefault();
+        requestSortAll();
+      } else if (mod && !e.altKey && !e.shiftKey && c === "KeyB") {
+        e.preventDefault();
+        setLeftOpen((v) => !v);
+      } else if (mod && !e.altKey && !e.shiftKey && c === "KeyJ") {
+        e.preventDefault();
+        setRightOpen((v) => !v);
+      } else if (mod && !e.altKey && !e.shiftKey && c === "KeyK") {
+        e.preventDefault();
+        toggleSearchKb();
+      } else if (mod && !e.altKey && c === "Comma") {
+        e.preventDefault();
+        setSettingsOpen(true);
+      } else if (!mod && e.altKey && !e.shiftKey && c === "Digit1") {
+        e.preventDefault();
+        goHome();
+      } else if (!mod && e.altKey && !e.shiftKey && c === "Digit2") {
+        e.preventDefault();
+        setView("dashboard");
+      } else if (!mod && e.altKey && !e.shiftKey && c === "Digit3") {
+        e.preventDefault();
+        setView("graph");
+      } else if (!mod && e.altKey && !e.shiftKey && c === "KeyT") {
+        e.preventDefault();
+        setTagsOpen((v) => !v);
+      } else if (!mod && e.altKey && !e.shiftKey && c === "KeyU") {
+        e.preventDefault();
+        uploadRef.current?.click();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   // Wraps a fallible action: shows the error in the banner. Returns fn's result.
   async function run(fn) {
@@ -184,6 +251,25 @@ export default function App() {
 
   function handleSelectNote(id) {
     openTab(id);
+  }
+
+  // Home goes to notes: the active tab if there is one, otherwise the
+  // Assistant. Never clears the tab position, so Dashboard -> Home resumes
+  // where you left off.
+  function goHome() {
+    if (!activeId && tabs.length > 0) setActiveId(tabs[tabs.length - 1]);
+    setView("notes");
+  }
+
+  // Search toggle shared by the navbar button and the Ctrl+K shortcut.
+  // Keyboard opening anchors the dropdown under the navbar search button.
+  function toggleSearchKb() {
+    setSearchOpen((open) => {
+      if (open) return false;
+      const r = searchBtnRef.current?.getBoundingClientRect();
+      if (r) setSearchAnchor({ top: r.bottom + 8, left: Math.min(r.left, window.innerWidth - 336) });
+      return true;
+    });
   }
 
   // File tabs join the same strip: opening a file replaces the transient
@@ -291,13 +377,10 @@ export default function App() {
         refresh();
         const name = result?.folder?.name;
         if (name) {
-          setToast({
-            key: Date.now(),
-            noteId: id,
-            folderId: result.folder._id,
-            created: result.created,
-            title: title || "Note",
-            folder: name,
+          const snap = { noteId: id, folderId: result.folder._id, created: result.created };
+          showToast(`Auto Sort moved “${title || "Note"}” to ${name}`, {
+            hint: "Turn off in Settings → Automation.",
+            undo: { label: "Undo", run: () => undoAutoSort(snap) },
           });
         }
       })
@@ -319,11 +402,8 @@ export default function App() {
 
   // Undo an AI filing from the toast: the note goes back to unsorted, and an
   // AI-created folder is removed when it stayed empty.
-  function undoAutoSort() {
-    const t = toast;
-    if (!t) return;
-    setToast(null);
-    run(async () => {
+  function undoAutoSort(t) {
+    return run(async () => {
       await api.undoOrganize({
         noteId: t.noteId,
         folderId: t.folderId,
@@ -343,22 +423,23 @@ export default function App() {
 
   // Drag-and-drop move: a note or folder dropped onto a folder (or the empty
   // tree area for top level / unsorted). Invalid folder moves throw to the banner.
+  // Drag-and-drop move (single item) with an Undo toast.
   function handleMove(kind, id, target) {
     run(async () => {
+      const item =
+        kind === "note"
+          ? notes.find((n) => n._id === id)
+          : kind === "file"
+            ? files.find((f) => f._id === id)
+            : folders.find((f) => f._id === id);
+      const key = kind === "folder" ? "parentId" : "folderId";
+      const cur = item?.[key]?._id || item?.[key] || null;
+      if (String(cur || "") === String(target || "")) return;
       if (kind === "note") {
-        const note = notes.find((n) => n._id === id);
-        const cur = note?.folderId?._id || note?.folderId || null;
-        if (String(cur || "") === String(target || "")) return;
         await api.updateNote(id, { folderId: target });
       } else if (kind === "file") {
-        const file = files.find((f) => f._id === id);
-        const cur = file?.folderId?._id || file?.folderId || null;
-        if (String(cur || "") === String(target || "")) return;
         await api.updateFile(id, { folderId: target });
       } else {
-        const folder = folders.find((f) => f._id === id);
-        const cur = folder?.parentId?._id || folder?.parentId || null;
-        if (String(cur || "") === String(target || "")) return;
         if (target) {
           let cur2 = folders.find((f) => String(f._id) === String(target));
           while (cur2) {
@@ -371,6 +452,29 @@ export default function App() {
         await api.updateFolder(id, { parentId: target });
       }
       await refresh();
+      const label = kind === "note" ? item?.title : item?.name;
+      const dest =
+        kind === "folder"
+          ? target
+            ? folders.find((f) => String(f._id) === String(target))?.name || "a folder"
+            : "top level"
+          : target
+            ? folders.find((f) => String(f._id) === String(target))?.name || "a folder"
+            : "Unsorted";
+      const prev = cur;
+      showToast(`Moved “${label || "item"}” to ${dest}`, {
+        icon: "move",
+        undo: {
+          label: "Undo",
+          run: () =>
+            run(async () => {
+              if (kind === "note") await api.updateNote(id, { folderId: prev });
+              else if (kind === "file") await api.updateFile(id, { folderId: prev });
+              else await api.updateFolder(id, { parentId: prev });
+              await refresh();
+            }),
+        },
+      });
     });
   }
 
@@ -388,10 +492,53 @@ export default function App() {
 
   function confirmDeleteFolder() {
     const { id } = deletingFolder;
+    // Snapshot the folder and its direct contents: deletion orphans them to
+    // the top level, so Undo rebuilds the folder and files back whoever is
+    // still orphaned.
+    const snapF = folders.find((f) => String(f._id) === String(id));
+    const snap = snapF
+      ? {
+          name: snapF.name,
+          parentId: snapF.parentId?._id || snapF.parentId || null,
+          locked: !!snapF.locked,
+          noteIds: notes.filter((n) => String(n.folderId?._id || n.folderId || "") === String(id)).map((n) => n._id),
+          fileIds: files.filter((f) => String(f.folderId?._id || f.folderId || "") === String(id)).map((f) => f._id),
+          subIds: folders.filter((f) => String(f.parentId?._id || f.parentId || "") === String(id)).map((f) => f._id),
+        }
+      : null;
     setDeletingFolder(null);
     run(async () => {
       await api.deleteFolder(id);
       await refresh(); // folderIds changed, refresh the lists
+      if (snap) {
+        showToast(`Deleted folder “${snap.name}”`, {
+          icon: "delete",
+          hint: "Its contents were kept as unsorted.",
+          undo: {
+            label: "Undo",
+            run: () =>
+              run(async () => {
+                const folder = await api.createFolder(snap.name, snap.parentId);
+                if (snap.locked) await api.updateFolder(folder._id, { locked: true });
+                const fresh = await Promise.all([api.listNotes(), api.listFiles(), api.listFolders()]);
+                const [freshNotes, freshFiles, freshFolders] = fresh;
+                for (const nid of snap.noteIds) {
+                  const n = freshNotes.find((n) => String(n._id) === String(nid));
+                  if (n && !n.folderId) await api.updateNote(nid, { folderId: folder._id });
+                }
+                for (const fid of snap.fileIds) {
+                  const f = freshFiles.find((f) => String(f._id) === String(fid));
+                  if (f && !f.folderId) await api.updateFile(fid, { folderId: folder._id });
+                }
+                for (const sid of snap.subIds) {
+                  const s = freshFolders.find((f) => String(f._id) === String(sid));
+                  if (s && !s.parentId) await api.updateFolder(sid, { parentId: folder._id });
+                }
+                await refresh();
+              }),
+          },
+        });
+      }
     });
   }
 
@@ -521,23 +668,202 @@ export default function App() {
     setDeletingFile({ id, name });
   }
 
+  // Downloads a file's bytes for a restorable delete snapshot (best effort).
+  async function snapshotFileBytes(id) {
+    try {
+      const res = await fetch(fileContentUrl(id));
+      if (!res.ok) return null;
+      return await res.blob();
+    } catch {
+      return null;
+    }
+  }
+
   function confirmDeleteFile() {
     const { id } = deletingFile;
+    const snap = files.find((f) => f._id === id);
     setDeletingFile(null);
     closeTab(`file:${id}`);
     run(async () => {
+      const blob = await snapshotFileBytes(id);
       await api.deleteFile(id);
       setFiles((prev) => prev.filter((f) => f._id !== id));
+      if (snap) {
+        const meta = {
+          name: snap.name,
+          folderId: snap.folderId?._id || snap.folderId || null,
+          type: snap.mimeType || "application/octet-stream",
+        };
+        showToast(`Deleted “${snap.name}”`, {
+          icon: "delete",
+          undo: blob
+            ? {
+                label: "Undo",
+                run: () =>
+                  run(async () => {
+                    await api.uploadFiles([new File([blob], meta.name, { type: meta.type })], meta.folderId);
+                    await refresh();
+                  }),
+              }
+            : null,
+        });
+      }
     });
   }
 
   function confirmDeleteNote() {
     const { id } = deletingNote;
+    const snap = notes.find((n) => n._id === id);
     setDeletingNote(null);
     closeTab(id);
     run(async () => {
       await api.deleteNote(id);
       setNotes((prev) => prev.filter((n) => n._id !== id));
+      if (snap) {
+        const data = {
+          title: snap.title,
+          content: snap.content || "",
+          folderId: snap.folderId?._id || snap.folderId || null,
+          tags: snap.tags || [],
+        };
+        showToast(`Deleted “${snap.title}”`, {
+          icon: "delete",
+          undo: {
+            label: "Undo",
+            run: () =>
+              run(async () => {
+                await api.createNote(data);
+                await refresh();
+              }),
+          },
+        });
+      }
+    });
+  }
+
+  // Bulk actions from the sidebar multi-selection. Each returns the run()
+  // promise so the sidebar can clear its selection when the work is done.
+  function handleBulkDelete(items) {
+    // Opens the confirm modal; the sidebar clears its selection right away
+    // while the modal names what will be deleted.
+    setBulkDeleting(items);
+    return Promise.resolve();
+  }
+
+  function confirmBulkDelete() {
+    const items = bulkDeleting || [];
+    setBulkDeleting(null);
+    for (const x of items) {
+      if (x.kind === "note") closeTab(x.id);
+      else closeTab(`file:${x.id}`);
+    }
+    return run(async () => {
+      // Snapshot everything first (file bytes included) so Undo can rebuild.
+      const snaps = await Promise.all(
+        items.map(async (x) => {
+          if (x.kind === "note") {
+            const n = notes.find((n) => n._id === x.id);
+            return n
+              ? { kind: "note", data: { title: n.title, content: n.content || "", folderId: n.folderId?._id || n.folderId || null, tags: n.tags || [] } }
+              : null;
+          }
+          const f = files.find((f) => f._id === x.id);
+          if (!f) return null;
+          return {
+            kind: "file",
+            data: { name: f.name, folderId: f.folderId?._id || f.folderId || null, type: f.mimeType || "application/octet-stream" },
+            blob: await snapshotFileBytes(x.id),
+          };
+        })
+      );
+      for (const x of items) {
+        if (x.kind === "note") await api.deleteNote(x.id);
+        else await api.deleteFile(x.id);
+      }
+      const noteIds = new Set(items.filter((x) => x.kind === "note").map((x) => x.id));
+      const fileIds = new Set(items.filter((x) => x.kind === "file").map((x) => x.id));
+      setNotes((prev) => prev.filter((n) => !noteIds.has(n._id)));
+      setFiles((prev) => prev.filter((f) => !fileIds.has(f._id)));
+      const restorable = snaps.filter(Boolean);
+      if (restorable.length > 0) {
+        const skipped = restorable.filter((s) => s.kind === "file" && !s.blob).length;
+        showToast(`Deleted ${restorable.length} item${restorable.length === 1 ? "" : "s"}`, {
+          icon: "delete",
+          hint: skipped > 0 ? `${skipped} file${skipped === 1 ? "" : "s"} can't be restored` : "",
+          undo: {
+            label: "Undo",
+            run: () =>
+              run(async () => {
+                for (const s of restorable) {
+                  if (s.kind === "note") await api.createNote(s.data);
+                  else if (s.blob)
+                    await api.uploadFiles([new File([s.blob], s.data.name, { type: s.data.type })], s.data.folderId);
+                }
+                await refresh();
+              }),
+          },
+        });
+      }
+    });
+  }
+
+  function handleBulkMove(items, folderId) {
+    // selItems() already carries each item's previous folderId.
+    const prevs = items.map((x) => ({ kind: x.kind, id: x.id, prev: x.folderId || null }));
+    return run(async () => {
+      for (const x of items) {
+        if (x.kind === "note") await api.updateNote(x.id, { folderId });
+        else await api.updateFile(x.id, { folderId });
+      }
+      await refresh();
+      const dest = folderId
+        ? folders.find((f) => String(f._id) === String(folderId))?.name || "a folder"
+        : "Unsorted";
+      showToast(`Moved ${items.length} item${items.length === 1 ? "" : "s"} to ${dest}`, {
+        icon: "move",
+        undo: {
+          label: "Undo",
+          run: () =>
+            run(async () => {
+              for (const p of prevs) {
+                if (p.kind === "note") await api.updateNote(p.id, { folderId: p.prev });
+                else await api.updateFile(p.id, { folderId: p.prev });
+              }
+              await refresh();
+            }),
+        },
+      });
+    });
+  }
+
+  function handleBulkLock(items, locked) {
+    return run(async () => {
+      for (const x of items) {
+        if (x.kind !== "note") continue;
+        const updated = await api.updateNote(x.id, { locked });
+        setNotes((prev) => prev.map((n) => (n._id === x.id ? updated : n)));
+      }
+    });
+  }
+
+  function handleBulkSort(noteIds) {
+    const targets = notes.filter((n) => noteIds.includes(n._id) && !n.folderId && !n.locked);
+    if (targets.length === 0) return Promise.resolve();
+    return run(async () => {
+      setSorting({ done: 0, total: targets.length });
+      try {
+        for (const n of targets) {
+          try {
+            await api.organize(n._id);
+          } catch {
+            // one failure must not stop the rest; errors surface per-note otherwise
+          }
+          setSorting((s) => s && { done: s.done + 1, total: s.total });
+        }
+      } finally {
+        setSorting(null);
+        await refresh();
+      }
     });
   }
 
@@ -558,6 +884,17 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col text-neutral-200">
+      {/* Hidden picker for the Upload shortcut (Alt+U): drops into Unsorted. */}
+      <input
+        ref={uploadRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) handleUploadFiles([...e.target.files], null);
+          e.target.value = "";
+        }}
+      />
       {/* Top navbar: logo - homepage - search - settings - left toggle - tabs - right toggle */}
       <header
         className="glass pane-top relative flex h-11 shrink-0 items-center gap-1 px-2"
@@ -565,27 +902,22 @@ export default function App() {
         onDrop={handleNavbarDrop}
       >
         <NavButton
-          title="Home"
+          title={shortcutTitle("Home", "home")}
           active={view === "notes" && !activeId}
-          onClick={() => {
-            // Home goes to notes: the active tab if there is one,
-            // otherwise the Assistant. Never clears the tab position,
-            // so Dashboard -> Home resumes where you left off.
-            if (!activeId && tabs.length > 0) setActiveId(tabs[tabs.length - 1]);
-            setView("notes");
-          }}
+          onClick={goHome}
         >
           <LuHouse size={17} />
         </NavButton>
-        <NavButton title="Dashboard" active={view === "dashboard"} onClick={() => setView("dashboard")}>
+        <NavButton title={shortcutTitle("Dashboard", "dashboard")} active={view === "dashboard"} onClick={() => setView("dashboard")}>
           <LuLayoutDashboard size={17} />
         </NavButton>
-        <NavButton title="Knowledge graph" active={view === "graph"} onClick={() => setView("graph")}>
+        <NavButton title={shortcutTitle("Knowledge graph", "graph")} active={view === "graph"} onClick={() => setView("graph")}>
           <LuWaypoints size={17} />
         </NavButton>
         <NavButton
-          title="Search notes"
+          title={shortcutTitle("Search notes", "search")}
           active={searchOpen}
+          buttonRef={searchBtnRef}
           onClick={(e) => {
             if (searchOpen) {
               setSearchOpen(false);
@@ -598,14 +930,14 @@ export default function App() {
         >
           <LuSearch size={17} />
         </NavButton>
-        <NavButton title="Browse tags" active={tagsOpen} onClick={() => setTagsOpen((v) => !v)}>
+        <NavButton title={shortcutTitle("Browse tags", "tags")} active={tagsOpen} onClick={() => setTagsOpen((v) => !v)}>
           <LuTag size={17} />
         </NavButton>
-        <NavButton title="Settings" active={settingsOpen} onClick={() => setSettingsOpen(true)}>
+        <NavButton title={shortcutTitle("Settings", "settings")} active={settingsOpen} onClick={() => setSettingsOpen(true)}>
           <LuSettings size={17} />
         </NavButton>
         <div className="mx-1 h-5 w-px shrink-0 bg-white/10" />
-        <NavButton title={leftOpen ? "Close left sidebar" : "Open left sidebar"} onClick={() => setLeftOpen((v) => !v)}>
+        <NavButton title={shortcutTitle(leftOpen ? "Close left sidebar" : "Open left sidebar", "toggle-sidebar")} onClick={() => setLeftOpen((v) => !v)}>
           {leftOpen ? <LuPanelLeftClose size={17} /> : <LuPanelLeftOpen size={17} />}
         </NavButton>
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
@@ -666,7 +998,7 @@ export default function App() {
         {/* The right panel only exists while a tab is open; the Assistant
             in the center makes it redundant, so the toggle hides too. */}
         {centerHasTab && (
-          <NavButton title={rightOpen ? "Close right sidebar" : "Open right sidebar"} onClick={() => setRightOpen((v) => !v)}>
+          <NavButton title={shortcutTitle(rightOpen ? "Close right sidebar" : "Open right sidebar", "assistant")} onClick={() => setRightOpen((v) => !v)}>
             {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}
           </NavButton>
         )}
@@ -712,6 +1044,10 @@ export default function App() {
           onMove={handleMove}
           onSortAll={requestSortAll}
           onToggleLock={handleToggleLock}
+          onBulkDelete={handleBulkDelete}
+          onBulkMove={handleBulkMove}
+          onBulkLock={handleBulkLock}
+          onBulkSort={handleBulkSort}
           sorting={sorting}
         />
         </div>
@@ -987,6 +1323,44 @@ export default function App() {
         </Modal>
       )}
 
+      {/* Bulk delete confirm */}
+      {bulkDeleting && (
+        <Modal onClose={() => setBulkDeleting(null)}>
+          {(close) => (
+            <div className="glass w-full max-w-sm rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-neutral-100">
+                Delete {bulkDeleting.length} item{bulkDeleting.length === 1 ? "" : "s"}
+              </h3>
+              <p className="mt-1 truncate text-sm text-neutral-400">
+                {bulkDeleting
+                  .slice(0, 3)
+                  .map((x) => x.label)
+                  .join(", ")}
+                {bulkDeleting.length > 3 && ` and ${bulkDeleting.length - 3} more`}
+              </p>
+              <p className="mt-1 text-sm text-neutral-400">
+                will be permanently deleted. Are you sure?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={close}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                >
+                  Keep <Kbd>Esc</Kbd>
+                </button>
+                <button
+                  data-modal-primary
+                  onClick={confirmBulkDelete}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                >
+                  Delete <Kbd>Enter</Kbd>
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+
       {/* Unsaved-tab close confirm */}
       {closingId && (
         <Modal onClose={() => setClosingId(null)}>
@@ -1080,32 +1454,38 @@ export default function App() {
         </div>
       )}
 
-      {/* AI filing toast with Undo */}
+      {/* Operation toast with Undo */}
       {toast && (
         <div
           key={toast.key}
-          className="toast-in glass fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm shadow-xl"
+          className="toast-in glass fixed bottom-4 right-4 z-50 flex max-w-sm items-center gap-3 rounded-xl px-4 py-2.5 text-sm shadow-xl"
         >
-          <LuFolderCheck size={16} className={`shrink-0 ${currentAccent().text}`} />
+          {toast.icon === "delete" ? (
+            <LuTrash2 size={16} className="shrink-0 danger-text" />
+          ) : toast.icon === "move" ? (
+            <LuFolderSymlink size={16} className={`shrink-0 ${currentAccent().text}`} />
+          ) : (
+            <LuFolderCheck size={16} className={`shrink-0 ${currentAccent().text}`} />
+          )}
           <span className="min-w-0">
-            <span className="block truncate text-neutral-200">
-              Auto Sort moved “{toast.title}” to {toast.folder}
-            </span>
-            <span className="block text-xs text-neutral-500">
-              Turn off in Settings → Automation.
-            </span>
+            <span className="block truncate text-neutral-200">{toast.message}</span>
+            {toast.hint && (
+              <span className="block truncate text-xs text-neutral-500">{toast.hint}</span>
+            )}
           </span>
-          <button
-            onClick={undoAutoSort}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ${currentAccent().solid}`}
-          >
-            <LuUndo2 size={13} />
-            Undo
-          </button>
+          {toast.undo && (
+            <button
+              onClick={dismissToastAndRun}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ${currentAccent().solid}`}
+            >
+              <LuUndo2 size={13} />
+              {toast.undo.label || "Undo"}
+            </button>
+          )}
           <button
             onClick={() => setToast(null)}
             title="Dismiss"
-            className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
+            className="shrink-0 rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
           >
             <LuX size={14} />
           </button>

@@ -210,7 +210,8 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
   useEffect(() => {
     if (!active) return;
     function onKey(e) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      // Plain Ctrl+S saves; Ctrl+Alt+S belongs to Auto Sort (see shortcuts.js).
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
         if (dirtyRef.current) saveRef.current?.();
       }
@@ -272,6 +273,7 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
         </button>
         <button
           onClick={save}
+          title="Save (Ctrl+S)"
           disabled={!dirty}
           className={`min-w-16 rounded-md px-3 py-1 text-center text-sm font-medium ${
             dirty
