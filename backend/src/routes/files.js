@@ -9,15 +9,21 @@ import { aiFromReq, tagFileInBackground, tagNoteInBackground } from "../services
 
 const router = Router();
 
-// Same accepted types as the note-attachment upload endpoint.
+// Same accepted types as the note-attachment upload endpoint, plus
+// Excalidraw scenes (JSON text, matched by extension).
 const ALLOWED_TYPES = new Set(["application/pdf", "text/markdown", "text/plain"]);
 
 function fileFilter(req, file, cb) {
   const ext = path.extname(file.originalname).toLowerCase();
-  if (file.mimetype.startsWith("image/") || ALLOWED_TYPES.has(file.mimetype) || ext === ".md") {
+  if (
+    file.mimetype.startsWith("image/") ||
+    ALLOWED_TYPES.has(file.mimetype) ||
+    ext === ".md" ||
+    ext === ".excalidraw"
+  ) {
     return cb(null, true);
   }
-  cb(new Error("Unsupported file type (images, pdf, md only)"));
+  cb(new Error("Unsupported file type (images, pdf, md, excalidraw only)"));
 }
 
 // Memory storage: the buffer goes straight into MongoDB (no disk copy).
@@ -177,9 +183,11 @@ router.put("/:id", async (req, res, next) => {
       if (typeof req.body.content !== "string")
         return res.status(400).json({ error: "File content must be text" });
       const editable =
-        (doc.mimeType || "").startsWith("text/") || /\.md$/i.test(doc.name || "");
+        (doc.mimeType || "").startsWith("text/") ||
+        /\.md$/i.test(doc.name || "") ||
+        /\.excalidraw$/i.test(doc.name || "");
       if (!editable)
-        return res.status(400).json({ error: "Only text files can be edited" });
+        return res.status(400).json({ error: "Only text and drawing files can be edited" });
       doc.data = Buffer.from(req.body.content, "utf8");
       doc.size = doc.data.length;
     }

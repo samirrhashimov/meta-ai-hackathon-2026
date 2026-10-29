@@ -26,6 +26,7 @@ import {
   LuLock,
   LuLockOpen,
   LuMenu,
+  LuPenTool,
   LuPencil,
   LuPlus,
   LuTrash2,
@@ -51,14 +52,21 @@ function formatDate(value) {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
 }
 
-// Browser download of a MongoDB-stored file.
-function downloadFile(file) {
+// Browser download of a MongoDB-stored file. Fetched as a blob first: the
+// `download` attribute is ignored for cross-origin URLs (the API lives on a
+// different port), which is why it used to open in a tab instead.
+async function downloadFile(file) {
+  const res = await fetch(fileContentUrl(file._id));
+  if (!res.ok) throw new Error("Download failed");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = fileContentUrl(file._id);
+  a.href = url;
   a.download = file.name || "file";
   document.body.appendChild(a);
   a.click();
   a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Browser download of a note as a .md file.
@@ -86,6 +94,7 @@ export default function Sidebar({
   onSelectFile,
   onNewNote,
   onNewFolder,
+  onNewDrawing,
   onUploadFiles,
   onDeleteFolder,
   onDeleteNote,
@@ -208,9 +217,10 @@ export default function Sidebar({
     openFn(id);
   }
 
-  // Right-click: a selected row in a multi-selection opens bulk actions.
+  // Right-click: a selected row opens bulk actions (in selection mode even
+  // a single selected row does — that is the point of marking it).
   function handleRowMenu(e, kind, item, singleMenu) {
-    if (sel.length > 1 && selSet.has(keyOf(kind, item._id))) {
+    if (selSet.has(keyOf(kind, item._id)) && (sel.length > 1 || selectMode)) {
       openMenu(e, bulkMenuItems());
       return;
     }
@@ -265,17 +275,17 @@ export default function Sidebar({
     ];
   }
 
-  // Header bulk button: with a selection it opens bulk actions; otherwise
-  // it toggles selection mode (plain clicks select instead of opening),
-  // a Shift+click alternative. Active while selecting.
+  // Header bulk button: with a selection it opens bulk actions (even in
+  // selection mode); empty in selection mode exits it, otherwise it enters
+  // selection mode — a Shift+click alternative. Active while selecting.
   function onBulkButton(e) {
+    if (sel.length > 0) {
+      openMenu(e, bulkMenuItems());
+      return;
+    }
     if (selectMode) {
       setSelectMode(false);
       clearSel();
-      return;
-    }
-    if (sel.length > 0) {
-      openMenu(e, bulkMenuItems());
       return;
     }
     setSelectMode(true);
@@ -509,12 +519,14 @@ export default function Sidebar({
   const blankMenu = [
     { label: "New Note", icon: LuFilePlus, action: () => onNewNote(null) },
     { label: "New Folder", icon: LuFolderPlus, action: () => onNewFolder(null) },
+    { label: "New Drawing", icon: LuPenTool, action: () => onNewDrawing(null) },
     { label: "Upload File", icon: LuUpload, action: () => fileInputRef.current?.click() },
   ];
 
   const folderMenu = (folder) => [
     { label: "New Note Here", icon: LuFilePlus, action: () => onNewNote(folder._id) },
     { label: "New Subfolder", icon: LuFolderPlus, action: () => onNewFolder(folder._id) },
+    { label: "New Drawing Here", icon: LuPenTool, action: () => onNewDrawing(folder._id) },
     { label: "Rename", icon: LuPencil, action: () => onRenameStart("folder", folder._id) },
     {
       label: folder.locked ? "Unlock" : "Lock",
@@ -542,6 +554,7 @@ export default function Sidebar({
   const compactMenu = [
     { label: "New Note", icon: LuFilePlus, action: () => onNewNote(null) },
     { label: "New Folder", icon: LuFolderPlus, action: () => onNewFolder(null) },
+    { label: "New Drawing", icon: LuPenTool, action: () => onNewDrawing(null) },
     { label: "Upload File", icon: LuUpload, action: () => fileInputRef.current?.click() },
     {
       label: `Sort By: ${SORTS[sortBy]?.label || "Created date"}`,
@@ -1139,7 +1152,7 @@ function FileRow({ file, selected, inSel, selectMode, onRowClick, onRowMenu, ren
   if (isRenaming) {
     return (
       <div ref={rowRef} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm">
-        <FileTypeIcon mime={file.mimeType} />
+        <FileTypeIcon mime={file.mimeType} name={file.name} />
         <RenameInput
           initial={file.name}
           onSubmit={(v) => onRenameSubmit(file._id, v)}
@@ -1172,7 +1185,7 @@ function FileRow({ file, selected, inSel, selectMode, onRowClick, onRowMenu, ren
           {inSel && <LuCheck size={11} strokeWidth={3} />}
         </span>
       )}
-      <FileTypeIcon mime={file.mimeType} />
+      <FileTypeIcon mime={file.mimeType} name={file.name} />
       <span className="min-w-0 flex-1 truncate">{file.name}</span>
     </button>
   );

@@ -39,6 +39,7 @@ export const ACCENT_PRESETS = [
   { v: "emerald", c: "#34d399" },
   { v: "amber", c: "#fbbf24" },
   { v: "rose", c: "#fb7185" },
+  { v: "violet", c: "#a78bfa" },
 ];
 
 function hexToRgb(hex) {
@@ -62,7 +63,7 @@ function rgba(hex, alpha) {
 
 // Real colors for canvas/SVG use: presets resolve to their hex,
 // a custom "#rrggbb" derives bright/pale/dim variants the same way.
-const INKS = { cyan: "#0e7490", emerald: "#065f46", amber: "#92400e", rose: "#9f1239" };
+const INKS = { cyan: "#0e7490", emerald: "#065f46", amber: "#92400e", rose: "#9f1239", violet: "#5b21b6" };
 
 export function accentHexes(value) {
   const found = ACCENT_PRESETS.find((p) => p.v === value);

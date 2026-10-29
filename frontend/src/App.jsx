@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, fileContentUrl } from "./api";
 import { shortcutTitle } from "./shortcuts";
 import Sidebar from "./components/Sidebar";
 import NoteEditor from "./components/NoteEditor";
 import FileViewer, { FileTypeIcon } from "./components/FileViewer";
+const DrawingViewer = lazy(() => import("./components/DrawingViewer"));
+import { blankScene, isDrawing } from "./drawings";
 import TagsModal from "./components/TagsModal";
 import Modal, { Kbd } from "./components/Modal";
 import AiPanel from "./components/AiPanel";
@@ -78,8 +80,8 @@ export default function App() {
     document.documentElement.dataset.font = settings.editorFont || "m";
     document.documentElement.dataset.theme = settings.theme || "dark";
   }, [settings]);
-  const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 256);
-  const [rightW, setRightW] = useState(() => Number(localStorage.getItem("ui.rightW")) || 320);
+  const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 300);
+  const [rightW, setRightW] = useState(() => Number(localStorage.getItem("ui.rightW")) || 360);
   const [leftOpen, setLeftOpen] = useState(() => localStorage.getItem("ui.leftOpen") !== "false");
   const [draggingPane, setDraggingPane] = useState(false); // suspends width transition mid-drag
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem("ui.rightOpen") !== "false");
@@ -668,6 +670,22 @@ export default function App() {
     setDeletingFile({ id, name });
   }
 
+  // New drawings are .excalidraw scene files in MongoDB: created like notes
+  // (opened in a tab, rename focused), stored and edited like files.
+  function handleNewDrawing(folderId = null) {
+    run(async () => {
+      const scene = new File([JSON.stringify(blankScene(), null, 2)], "Untitled drawing.excalidraw", {
+        type: "application/json",
+      });
+      const results = await api.uploadFiles([scene], folderId);
+      const created = results.map((r) => r.file).filter(Boolean)[0];
+      if (!created) throw new Error("Upload failed");
+      setFiles((prev) => [created, ...prev]);
+      openFileTab(created._id);
+      setRenaming({ kind: "file", id: created._id });
+    });
+  }
+
   // Downloads a file's bytes for a restorable delete snapshot (best effort).
   async function snapshotFileBytes(id) {
     try {
@@ -961,7 +979,7 @@ export default function App() {
                 } ${preview ? "italic" : ""}`}
               >
                 {fileTab ? (
-                  <FileTypeIcon mime={t?.mimeType} size={13} />
+                  <FileTypeIcon mime={t?.mimeType} name={t?.name} size={13} />
                 ) : (
                   <LuFileText size={13} className="shrink-0 text-neutral-500" />
                 )}
@@ -1031,6 +1049,7 @@ export default function App() {
           onSelectFile={handleSelectFile}
           onNewNote={handleNewNote}
           onNewFolder={handleNewFolder}
+          onNewDrawing={handleNewDrawing}
           onUploadFiles={handleUploadFiles}
           onDeleteFolder={handleDeleteFolder}
           onDeleteNote={handleDeleteNote}
@@ -1080,13 +1099,33 @@ export default function App() {
               if (!f) return null;
               return (
                 <div key={id} className={isActive ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-                  <FileViewer
-                    file={f}
-                    active={isActive}
-                    onSaveContent={handleSaveFileContent}
-                    onSaveTags={handleSaveFileTags}
-                    onDelete={handleDeleteFile}
-                  />
+                  {isDrawing(f) ? (
+                    <Suspense
+                      fallback={
+                        <div className="flex min-h-0 flex-1 items-center justify-center">
+                          <p className="text-sm text-neutral-600">Loading editor…</p>
+                        </div>
+                      }
+                    >
+                      <DrawingViewer
+                        file={f}
+                        active={isActive}
+                        theme={settings.theme}
+                        onSaveContent={handleSaveFileContent}
+                        onSaveTags={handleSaveFileTags}
+                        onDelete={handleDeleteFile}
+                        onDirtyChange={(d) => handleDirtyChange(id, d)}
+                      />
+                    </Suspense>
+                  ) : (
+                    <FileViewer
+                      file={f}
+                      active={isActive}
+                      onSaveContent={handleSaveFileContent}
+                      onSaveTags={handleSaveFileTags}
+                      onDelete={handleDeleteFile}
+                    />
+                  )}
                 </div>
               );
             }
@@ -1368,7 +1407,9 @@ export default function App() {
             <div className="glass w-full max-w-sm rounded-2xl p-5">
               <h3 className="text-sm font-semibold text-neutral-100">Unsaved changes</h3>
               <p className="mt-1 text-sm text-neutral-400">
-                "{notes.find((n) => n._id === closingId)?.title || "Note"}" has unsaved changes.
+                "{notes.find((n) => n._id === closingId)?.title ||
+                  files.find((f) => `file:${f._id}` === closingId)?.name ||
+                  "Note"}" has unsaved changes.
                 Are you sure you want to close it without saving?
               </p>
               <div className="mt-4 flex justify-end gap-2">

@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { LuFile, LuFileImage, LuFileText } from "react-icons/lu";
+import { LuFile, LuFileImage, LuFileText, LuPenTool } from "react-icons/lu";
 import { fileContentUrl } from "../api";
 import { HyperEditor } from "./NoteEditor";
 import { currentAccent } from "../accent";
 import TagEditor from "./TagEditor";
 
 // Icon for a stored file, shared by the tree, tabs and the viewer header.
-export function FileTypeIcon({ mime, size = 14, className = "text-neutral-500" }) {
+// Drawings (.excalidraw) get their own pen icon regardless of mime type.
+export function FileTypeIcon({ mime, name, size = 14, className = "text-neutral-500" }) {
   const cls = `shrink-0 ${className}`;
+  if (/\.excalidraw$/i.test(name || "")) return <LuPenTool size={size} className={cls} />;
   if ((mime || "").startsWith("image/")) return <LuFileImage size={size} className={cls} />;
   if (!mime || mime === "application/octet-stream") return <LuFile size={size} className={cls} />;
   return <LuFileText size={size} className={cls} />;
@@ -103,7 +105,7 @@ export default function FileViewer({ file, active, onSaveContent, onSaveTags, on
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Title row (same h-12 header line as the other panes) */}
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-white/10 px-3">
-        <FileTypeIcon mime={mime} size={15} />
+        <FileTypeIcon mime={mime} name={file.name} size={15} />
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-100">
           {file.name}
         </span>

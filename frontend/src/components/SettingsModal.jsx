@@ -6,11 +6,11 @@ import {
   LuEye,
   LuEyeOff,
   LuLoaderCircle,
-  LuPalette,
   LuTrash2,
 } from "react-icons/lu";
 import { api } from "../api";
-import { ACCENT_PRESETS, currentAccent } from "../accent";
+import { currentAccent } from "../accent";
+import { THEMES, presetHex, themeOf } from "../themes";
 import { DEFAULT_SETTINGS } from "../settings";
 import { SHORTCUTS } from "../shortcuts";
 import Modal, { Kbd } from "./Modal";
@@ -73,8 +73,10 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [working, setWorking] = useState(false);
   const [pickingColor, setPickingColor] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false); // custom card expanded
   const [showAdvanced, setShowAdvanced] = useState(false);
   const isCustomHex = /^#[0-9a-fA-F]{6}$/.test(settings.accent || "");
+  const current = themeOf(settings); // gallery match, or null for Custom
 
   const set = (patch) => onChange({ ...settings, ...patch });
 
@@ -106,7 +108,7 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "lumia-export.json";
+    a.download = "flama-export.json";
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -124,10 +126,6 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
     }
   }
 
-  const keySource = settings.apiKey.trim()
-    ? "Custom key (Settings)"
-    : "Backend key (.env)";
-
   return (
     <>
     <Modal onClose={onClose}>
@@ -139,10 +137,7 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
           </div>
 
           <div className="max-h-[70vh] overflow-y-auto">
-            <Section
-              title="API Connection"
-              desc="Use your own key here. Empty fields fall back to the backend .env key."
-            >
+            <Section title="API Connection">
               <Field label="Meta API Key">
                 <div className="relative">
                   <input
@@ -252,88 +247,136 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                 </div>
               </Field>
               <Field label="Theme">
-                <div className="flex gap-1.5">
-                  {[
-                    { v: "dark", label: "Dark" },
-                    { v: "light", label: "Light" },
-                  ].map((o) => (
-                    <button
-                      key={o.v}
-                      title={o.label}
-                      onClick={() => set({ theme: o.v })}
-                      className={`flex-1 rounded-lg px-2 py-1.5 text-xs ${
-                        (settings.theme || "dark") === o.v
-                          ? `border ${acc.softBorder} ${acc.softBg} ${acc.softText}`
-                          : "border border-white/10 text-neutral-400 hover:bg-white/5"
-                      }`}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              <Field label="Accent color">
-                <div className="flex gap-2">
-                  {ACCENT_PRESETS.map((o) => (
-                    <button
-                      key={o.v}
-                      title={o.v}
-                      onClick={() => set({ accent: o.v })}
-                      className={`flex h-8 flex-1 items-center justify-center rounded-lg border ${
-                        settings.accent === o.v
-                          ? "border-white/40"
-                          : "border-white/10 hover:border-white/25"
-                      }`}
-                      style={{ background: `${o.c}22` }}
-                    >
-                      <span className="h-3.5 w-3.5 rounded-full" style={{ background: o.c }} />
-                    </button>
-                  ))}
-                  <button
-                    title={isCustomHex ? `Custom ${settings.accent}` : "Custom color..."}
-                    onClick={() => setPickingColor(true)}
-                    className={`flex h-8 flex-1 items-center justify-center rounded-lg ${
-                      isCustomHex ? "border-2" : "border border-white/10 hover:border-white/25"
-                    }`}
-                    style={
-                      isCustomHex
-                        ? { background: `${settings.accent}22`, borderColor: settings.accent }
-                        : {
+                <div className="grid grid-cols-3 gap-2">
+                  {THEMES.map((t) => {
+                    const hex = presetHex(t.accent);
+                    const active = current?.id === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        title={`${t.name} (${t.blurb})`}
+                        onClick={() => {
+                          setCustomOpen(false);
+                          set({ theme: t.theme, accent: t.accent });
+                        }}
+                        className="rounded-xl border border-white/10 p-2 text-left hover:border-white/25"
+                        style={
+                          active
+                            ? { borderColor: hex, boxShadow: `0 0 0 1px ${hex}` }
+                            : undefined
+                        }
+                      >
+                        <span
+                          className="block overflow-hidden rounded-lg border border-white/10"
+                          style={{ background: t.theme === "dark" ? "#17171c" : "#ececee" }}
+                        >
+                          <span className="flex items-center gap-1 px-2 pt-1.5">
+                            {[0, 1, 2].map((d) => (
+                              <span
+                                key={d}
+                                className="h-1.5 w-1.5 rounded-full"
+                                style={{
+                                  background:
+                                    t.theme === "dark"
+                                      ? "rgba(255,255,255,0.25)"
+                                      : "rgba(0,0,0,0.2)",
+                                }}
+                              />
+                            ))}
+                          </span>
+                          <span className="flex gap-1.5 p-2">
+                            <span
+                              className="flex w-8 flex-col gap-1 rounded p-1"
+                              style={{
+                                background:
+                                  t.theme === "dark"
+                                    ? "rgba(255,255,255,0.06)"
+                                    : "rgba(0,0,0,0.06)",
+                              }}
+                            >
+                              <span
+                                className="h-1 w-full rounded-full"
+                                style={{ background: hex }}
+                              />
+                              {[0, 1].map((l) => (
+                                <span
+                                  key={l}
+                                  className="h-1 w-full rounded-full"
+                                  style={{
+                                    background:
+                                      t.theme === "dark"
+                                        ? "rgba(255,255,255,0.18)"
+                                        : "rgba(0,0,0,0.15)",
+                                  }}
+                                />
+                              ))}
+                            </span>
+                            <span className="flex flex-1 flex-col justify-center gap-1">
+                              {[82, 64, 74].map((w, l) => (
+                                <span
+                                  key={l}
+                                  className="h-1 rounded-full"
+                                  style={{
+                                    width: `${w}%`,
+                                    background:
+                                      l === 1
+                                        ? hex
+                                        : t.theme === "dark"
+                                          ? "rgba(255,255,255,0.18)"
+                                          : "rgba(0,0,0,0.15)",
+                                  }}
+                                />
+                              ))}
+                            </span>
+                          </span>
+                        </span>
+                        <span className="mt-1.5 flex items-center justify-between">
+                          <span className="text-xs font-medium text-neutral-200">
+                            {t.name}
+                          </span>
+                          {active && <LuCheck size={13} style={{ color: hex }} />}
+                        </span>
+                        <span className="block text-[11px] text-neutral-500">
+                          {t.blurb}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {(() => {
+                    const customHex = isCustomHex ? settings.accent : presetHex(settings.accent);
+                    const active = !current;
+                    return (
+                      <button
+                        key="custom"
+                        title="Custom — mix any mode with any color"
+                        onClick={() => setCustomOpen(true)}
+                        className="rounded-xl border border-white/10 p-2 text-left hover:border-white/25"
+                        style={
+                          active
+                            ? { borderColor: customHex, boxShadow: `0 0 0 1px ${customHex}` }
+                            : undefined
+                        }
+                      >
+                        <span
+                          className="block h-[68px] overflow-hidden rounded-lg border border-white/10"
+                          style={{
                             background:
                               "conic-gradient(#f87171,#fbbf24,#34d399,#38bdf8,#a78bfa,#f87171)",
-                            opacity: 0.85,
-                          }
-                    }
-                  >
-                    {isCustomHex ? (
-                      <span
-                        className="flex h-4 w-4 items-center justify-center rounded-full"
-                        style={{ background: settings.accent }}
-                      >
-                        <LuCheck size={11} strokeWidth={3.5} color="#000" />
-                      </span>
-                    ) : (
-                      <LuPalette size={14} className="text-[#06202a]" />
-                    )}
-                  </button>
+                          }}
+                        />
+                        <span className="mt-1.5 flex items-center justify-between">
+                          <span className="text-xs font-medium text-neutral-200">
+                            Custom
+                          </span>
+                          {active && <LuCheck size={13} style={{ color: customHex }} />}
+                        </span>
+                        <span className="block text-[11px] text-neutral-500">
+                          Any mix
+                        </span>
+                      </button>
+                    );
+                  })()}
                 </div>
-                {isCustomHex && (
-                  <div className="mt-2 flex items-center gap-2 text-xs">
-                    <span
-                      className="rounded-md px-2 py-0.5 font-medium"
-                      style={{
-                        background: `${settings.accent}1f`,
-                        color: settings.accent,
-                        border: `1px solid ${settings.accent}66`,
-                      }}
-                    >
-                      Custom
-                    </span>
-                    <span className="font-mono uppercase text-neutral-500">
-                      {settings.accent}
-                    </span>
-                  </div>
-                )}
               </Field>
               <div>
                 <button
@@ -398,9 +441,7 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
 
             <Section title="About">
               <p className="text-xs leading-relaxed text-neutral-500">
-                Lumia Notes · hackathon build · single-user demo.
-                <br />
-                Key source: {keySource}. Settings live in this browser only.
+                Flama · hackathon build · single-user demo.
               </p>
             </Section>
 
@@ -447,6 +488,95 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
         onClose={() => setPickingColor(false)}
       />
     )}
+    {customOpen && (
+      <CustomThemeEditor
+        initialTheme={settings.theme || "dark"}
+        initialAccent={settings.accent}
+        onClose={() => setCustomOpen(false)}
+        onSave={(patch) => {
+          set(patch);
+          setCustomOpen(false);
+        }}
+      />
+    )}
+    </>
+  );
+}
+
+// Custom theme as its own modal: pick any mode + any color, OK applies it.
+// The gallery shows it selected (unless the mix matches a preset theme).
+function CustomThemeEditor({ initialTheme, initialAccent, onClose, onSave }) {
+  const acc = currentAccent();
+  const [theme, setTheme] = useState(initialTheme);
+  const [accent, setAccent] = useState(initialAccent);
+  const [picking, setPicking] = useState(false);
+  const hex = /^#[0-9a-fA-F]{6}$/.test(accent || "") ? accent : presetHex(accent);
+  return (
+    <>
+    <Modal onClose={onClose}>
+      {(close) => (
+        <div className="glass w-full max-w-xs overflow-hidden rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-neutral-100">Custom theme</h3>
+          <p className="mt-1 text-sm text-neutral-400">
+            Mix any mode with any color.
+          </p>
+          <div className="mt-3 flex gap-1.5">
+            {[
+              { v: "dark", label: "Dark" },
+              { v: "light", label: "Light" },
+            ].map((o) => (
+              <button
+                key={o.v}
+                onClick={() => setTheme(o.v)}
+                className={`flex-1 rounded-lg px-2 py-1.5 text-xs ${
+                  theme === o.v
+                    ? `border ${acc.softBorder} ${acc.softBg} ${acc.softText}`
+                    : "border border-white/10 text-neutral-400 hover:bg-white/5"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <button
+            title="Pick a custom color"
+            onClick={() => setPicking(true)}
+            style={{ borderColor: `${hex}66`, background: `${hex}1f` }}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm"
+          >
+            <span className="h-4 w-4 rounded-full" style={{ background: hex }} />
+            <span className="font-mono uppercase" style={{ color: hex }}>
+              {hex}
+            </span>
+          </button>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              onClick={close}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+            >
+              Cancel <Kbd>Esc</Kbd>
+            </button>
+            <button
+              data-modal-primary
+              onClick={() => onSave({ theme, accent })}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${acc.solid}`}
+            >
+              OK <Kbd>Enter</Kbd>
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+      {picking && (
+        <ColorPickerModal
+          initial={hex}
+          onSave={(h) => {
+            setAccent(h);
+            setPicking(false);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </>
   );
 }

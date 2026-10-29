@@ -78,6 +78,24 @@
   --acc-a07: rgba(251, 113, 133, 0.07);
   --acc-a04: rgba(251, 113, 133, 0.04);
 }
+:root[data-accent="violet"] {
+  --acc: #a78bfa;
+  --acc-bright: #c4b5fd;
+  --acc-pale: #e6defe;
+  --acc-soft-text: #e6defe;
+  --acc-dim-text: color-mix(in srgb, #a78bfa 70%, transparent);
+  --acc-ink: #5b21b6;
+  --acc-a65b: rgba(196, 181, 253, 0.65);
+  --acc-a55b: rgba(196, 181, 253, 0.55);
+  --acc-a35b: rgba(196, 181, 253, 0.35);
+  --acc-a45: rgba(167, 139, 250, 0.45);
+  --acc-a35: rgba(167, 139, 250, 0.35);
+  --acc-a25: rgba(167, 139, 250, 0.25);
+  --acc-a18: rgba(167, 139, 250, 0.18);
+  --acc-a13: rgba(167, 139, 250, 0.13);
+  --acc-a07: rgba(167, 139, 250, 0.07);
+  --acc-a04: rgba(167, 139, 250, 0.04);
+}
 
 body {
   background:
@@ -672,6 +690,14 @@ html[data-theme="light"] .danger-text {
   .kbd-hint {
     display: none;
   }
+}
+/* Excalidraw canvas fills the drawing tab (the library sizes itself to
+   its container, so the container must have a definite height). */
+.drawing-canvas {
+  height: 100%;
+}
+.drawing-canvas .excalidraw {
+  height: 100%;
 }
 /* Filing toast entrance. */
 .toast-in {
