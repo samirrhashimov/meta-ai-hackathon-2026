@@ -7,6 +7,9 @@ import { stashUpload } from "../services/pending.js";
 import { buildGraph } from "../services/graph.js";
 import { getInsights } from "../services/insights.js";
 import { ChatMessage } from "../models/ChatMessage.js";
+import { Note } from "../models/Note.js";
+import { Folder } from "../models/Folder.js";
+import { File } from "../models/File.js";
 
 const router = Router();
 
@@ -27,6 +30,37 @@ router.post("/organize", async (req, res, next) => {
     res.json(result);
   } catch (err) {
     if (err.status === 404) return res.status(404).json({ error: err.message });
+    next(err);
+  }
+});
+
+// POST /api/ai/organize/undo — { noteId, folderId?, deleteFolder? }: undo an
+// AI filing. The note goes back to unfiled; an AI-created folder is removed
+// only when it stayed empty (no notes, files, or subfolders inside).
+router.post("/organize/undo", async (req, res, next) => {
+  try {
+    const { noteId, folderId = null, deleteFolder = false } = req.body;
+    if (!noteId || !isValidObjectId(noteId)) {
+      return res.status(400).json({ error: "Invalid noteId" });
+    }
+    const note = await Note.findById(noteId);
+    if (!note) return res.status(404).json({ error: "Note not found" });
+    note.folderId = null;
+    await note.save();
+    let removedFolder = false;
+    if (deleteFolder && folderId && isValidObjectId(folderId)) {
+      const [noteCount, fileCount, kidCount] = await Promise.all([
+        Note.countDocuments({ folderId }),
+        File.countDocuments({ folderId }),
+        Folder.countDocuments({ parentId: folderId }),
+      ]);
+      if (noteCount === 0 && fileCount === 0 && kidCount === 0) {
+        await Folder.findByIdAndDelete(folderId);
+        removedFolder = true;
+      }
+    }
+    res.json({ note: await note.populate("folderId", "name"), removedFolder });
+  } catch (err) {
     next(err);
   }
 });

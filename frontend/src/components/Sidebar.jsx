@@ -29,7 +29,7 @@ import {
 import { fileContentUrl } from "../api";
 import { currentAccent } from "../accent";
 import { FileTypeIcon } from "./FileViewer";
-import Modal from "./Modal";
+import Modal, { Kbd } from "./Modal";
 
 function formatSize(bytes) {
   if (!bytes) return "0 B";
@@ -521,7 +521,7 @@ export default function Sidebar({
               }}
               className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left ${
                 item.danger
-                  ? "text-red-300 hover:bg-red-400/10"
+                  ? "danger-text hover:bg-red-400/10"
                   : item.active
                     ? `${acc.softBgStrong} ${acc.softText}`
                     : `text-neutral-200 ${acc.softHover}`
@@ -530,7 +530,7 @@ export default function Sidebar({
               {item.icon && (
                 <item.icon
                   size={14}
-                  className={`shrink-0 ${item.danger ? "text-red-300/70" : "text-neutral-500"}`}
+                  className={`shrink-0 ${item.danger ? "danger-text-dim" : "text-neutral-500"}`}
                 />
               )}
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -562,7 +562,7 @@ export default function Sidebar({
               }}
               className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left ${
                 item.danger
-                  ? "text-red-300 hover:bg-red-400/10"
+                  ? "danger-text hover:bg-red-400/10"
                   : item.active
                     ? `${acc.softBgStrong} ${acc.softText}`
                     : `text-neutral-200 ${acc.softHover}`
@@ -571,7 +571,7 @@ export default function Sidebar({
               {item.icon && (
                 <item.icon
                   size={14}
-                  className={`shrink-0 ${item.danger ? "text-red-300/70" : "text-neutral-500"}`}
+                  className={`shrink-0 ${item.danger ? "danger-text-dim" : "text-neutral-500"}`}
                 />
               )}
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -626,10 +626,11 @@ export default function Sidebar({
                 </dl>
                 <div className="mt-4 flex justify-end">
                   <button
+                    data-modal-primary
                     onClick={close}
-                    className={`rounded-lg px-4 py-1.5 text-sm font-medium ${acc.solid}`}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium ${acc.solid}`}
                   >
-                    Close
+                    Close <Kbd>Esc</Kbd>
                   </button>
                 </div>
               </div>
@@ -789,8 +790,12 @@ function FolderNode({
         <span className="text-xs text-neutral-600">{notes.length + fileList.length}</span>
       </div>
 
-      {open && (
-        <div>
+      <div
+        className={`grid transition-all duration-300 ease-in-out ${
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
           {kids.map((k) => (
             <FolderNode
               key={k._id}
@@ -832,7 +837,7 @@ function FolderNode({
             ))}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

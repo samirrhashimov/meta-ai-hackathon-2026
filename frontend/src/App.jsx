@@ -5,15 +5,17 @@ import Sidebar from "./components/Sidebar";
 import NoteEditor from "./components/NoteEditor";
 import FileViewer, { FileTypeIcon } from "./components/FileViewer";
 import TagsModal from "./components/TagsModal";
-import Modal from "./components/Modal";
+import Modal, { Kbd } from "./components/Modal";
 import AiPanel from "./components/AiPanel";
 import Dashboard from "./components/Dashboard";
 import GraphView from "./components/GraphView";
 import SettingsModal from "./components/SettingsModal";
 import { loadSettings, saveSettings } from "./settings";
-import { LuFileText, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuWaypoints, LuX } from "react-icons/lu";
+import { LuFileText, LuFolderCheck, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
 import { applyAccentVars, currentAccent } from "./accent";
+import logo from "./assets/flama_icon.png";
+import logoDark from "./assets/flama_icon_dark.png";
 
 function NavButton({ title, active, onClick, children, dim }) {
   const acc = currentAccent();
@@ -62,11 +64,14 @@ export default function App() {
     setSettingsState(next);
   }
 
-  // Persist settings + expose font/accent to CSS.
+  // Persist settings + expose font/accent/theme to CSS.
+  // The "dark" logo variant belongs to the dark theme.
+  const logoSrc = settings.theme === "light" ? logo : logoDark;
   useEffect(() => {
     saveSettings(settings);
     applyAccentVars(settings.accent || "cyan");
     document.documentElement.dataset.font = settings.editorFont || "m";
+    document.documentElement.dataset.theme = settings.theme || "dark";
   }, [settings]);
   const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 256);
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem("ui.rightW")) || 320);
@@ -90,6 +95,14 @@ export default function App() {
   }, [rightOpen]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Filing toast: { key, message, noteId, folderId, created } — auto-dismisses.
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   async function refresh() {
     const [f, n, fl] = await Promise.all([api.listFolders(), api.listNotes(), api.listFiles()]);
@@ -253,17 +266,36 @@ export default function App() {
 
   function handleNewNote(folderId = null) {
     run(async () => {
-      // New unfiled notes are AI-sorted on creation when auto-sort is on.
-      const note = await api.createNote({
-        title: "New Note",
-        folderId,
-        autoSort: !folderId && settings.autoSort,
-      });
+      // Creation stays instant: the note is saved with a plain insert first and
+      // the UI updates right away. AI filing happens after the rename, when the
+      // note has a real title worth classifying (see handleRenameNote).
+      const note = await api.createNote({ title: "New Note", folderId });
       setNotes((prev) => [note, ...prev]);
       openTab(note._id);
       setRenaming({ kind: "note", id: note._id });
-      if (!folderId && settings.autoSort) refresh();
     });
+  }
+
+  // AI filing in the background: the UI stays instant, and a toast reports
+  // where the note landed with an Undo action.
+  function autoSortNote(id, title) {
+    api
+      .organize(id)
+      .then((result) => {
+        refresh();
+        const name = result?.folder?.name;
+        if (name) {
+          setToast({
+            key: Date.now(),
+            noteId: id,
+            folderId: result.folder._id,
+            created: result.created,
+            title: title || "Note",
+            folder: name,
+          });
+        }
+      })
+      .catch(() => {});
   }
 
   function handleRenameNote(id, title) {
@@ -271,6 +303,26 @@ export default function App() {
     run(async () => {
       const updated = await api.updateNote(id, { title });
       setNotes((prev) => prev.map((n) => (n._id === id ? updated : n)));
+      // Auto-sort runs in the background after the rename, so the field closes
+      // instantly and the AI files the note by its real title, not "New Note".
+      const folderId = updated.folderId?._id || updated.folderId || null;
+      if (settings.autoSort && !folderId) autoSortNote(id, updated.title);
+    });
+  }
+
+  // Undo an AI filing from the toast: the note goes back to unfiled, and an
+  // AI-created folder is removed when it stayed empty.
+  function undoAutoSort() {
+    const t = toast;
+    if (!t) return;
+    setToast(null);
+    run(async () => {
+      await api.undoOrganize({
+        noteId: t.noteId,
+        folderId: t.folderId,
+        deleteFolder: t.created,
+      });
+      await refresh();
     });
   }
 
@@ -342,12 +394,7 @@ export default function App() {
       setNotes((prev) => prev.map((n) => (n._id === id ? updated : n)));
       // Auto-sort: an unfiled note is filed by AI right after a manual save.
       const folderId = updated.folderId?._id || updated.folderId || null;
-      if (settings.autoSort && !folderId) {
-        api
-          .organize(id)
-          .then(() => refresh())
-          .catch(() => {});
-      }
+      if (settings.autoSort && !folderId) autoSortNote(id, updated.title);
     });
   }
 
@@ -584,13 +631,20 @@ export default function App() {
             {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}
           </NavButton>
         )}
+        <img
+          src={logoSrc}
+          alt="Lumia Notes"
+          title="Lumia Notes"
+          className="ml-3 h-6 w-auto shrink-0 select-none"
+          draggable={false}
+        />
       </header>
 
       <div className="flex min-h-0 flex-1">
       {/* Left: folders + notes (width animates; content keeps its size inside) */}
       <aside
         className={`glass pane-left shrink-0 overflow-hidden ${
-          draggingPane ? "" : "transition-[width] duration-300 ease-in-out"
+          draggingPane ? "" : "pane-x"
         } ${leftOpen ? "" : "pointer-events-none"}`}
         style={{ width: leftOpen ? sidebarW : 0 }}
         aria-hidden={!leftOpen}
@@ -703,7 +757,7 @@ export default function App() {
         )}
         <aside
           className={`glass pane-right shrink-0 overflow-hidden ${
-            draggingPane ? "" : "transition-[width] duration-300 ease-in-out"
+            draggingPane ? "" : "pane-x"
           } ${rightOpen ? "" : "pointer-events-none"}`}
           style={{ width: rightOpen ? rightW : 0 }}
           aria-hidden={!rightOpen}
@@ -817,15 +871,16 @@ export default function App() {
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   onClick={close}
-                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
                 >
-                  Keep
+                  Keep <Kbd>Esc</Kbd>
                 </button>
                 <button
+                  data-modal-primary
                   onClick={confirmDeleteNote}
-                  className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
                 >
-                  Delete
+                  Delete <Kbd>Enter</Kbd>
                 </button>
               </div>
             </div>
@@ -845,15 +900,16 @@ export default function App() {
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   onClick={close}
-                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
                 >
-                  Keep
+                  Keep <Kbd>Esc</Kbd>
                 </button>
                 <button
+                  data-modal-primary
                   onClick={confirmDeleteFile}
-                  className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
                 >
-                  Delete
+                  Delete <Kbd>Enter</Kbd>
                 </button>
               </div>
             </div>
@@ -874,15 +930,16 @@ export default function App() {
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   onClick={close}
-                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
                 >
-                  Keep
+                  Keep <Kbd>Esc</Kbd>
                 </button>
                 <button
+                  data-modal-primary
                   onClick={confirmDeleteFolder}
-                  className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
                 >
-                  Delete
+                  Delete <Kbd>Enter</Kbd>
                 </button>
               </div>
             </div>
@@ -903,18 +960,19 @@ export default function App() {
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   onClick={close}
-                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
                 >
-                  Keep editing
+                  Keep editing <Kbd>Esc</Kbd>
                 </button>
                 <button
+                  data-modal-primary
                   onClick={() => {
                     closeTab(closingId);
                     setClosingId(null);
                   }}
-                  className="rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
                 >
-                  Discard
+                  Discard <Kbd>Enter</Kbd>
                 </button>
               </div>
             </div>
@@ -924,9 +982,41 @@ export default function App() {
 
       {/* Error banner */}
       {error && (
-        <div className="fixed bottom-4 left-1/2 flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-lg border border-red-400/30 bg-neutral-900 px-4 py-2 text-sm text-red-200 shadow-xl">
+        <div className="fixed bottom-4 left-1/2 flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-lg border border-red-400/30 bg-[#17171c] px-4 py-2 text-sm text-red-200 shadow-xl">
           <span className="flex-1">{error}</span>
           <button onClick={() => setError("")} className="flex items-center text-red-300 hover:text-red-100">
+            <LuX size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* AI filing toast with Undo */}
+      {toast && (
+        <div
+          key={toast.key}
+          className="toast-in glass fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm shadow-xl"
+        >
+          <LuFolderCheck size={16} className={`shrink-0 ${currentAccent().text}`} />
+          <span className="min-w-0">
+            <span className="block truncate text-neutral-200">
+              Smart Sort moved “{toast.title}” to {toast.folder}
+            </span>
+            <span className="block text-xs text-neutral-500">
+              Turn off in Settings → Automation.
+            </span>
+          </span>
+          <button
+            onClick={undoAutoSort}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ${currentAccent().solid}`}
+          >
+            <LuUndo2 size={13} />
+            Undo
+          </button>
+          <button
+            onClick={() => setToast(null)}
+            title="Dismiss"
+            className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
+          >
             <LuX size={14} />
           </button>
         </div>

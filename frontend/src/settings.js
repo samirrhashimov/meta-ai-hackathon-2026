@@ -19,7 +19,8 @@ export const DEFAULT_SETTINGS = {
   autoTag: true,
   // Appearance
   editorFont: "m", // s | m | l
-  accent: "cyan", // cyan | emerald | amber | rose
+  accent: "cyan", // cyan | emerald | amber | rose | #rrggbb
+  theme: "dark", // dark | light (light coming soon)
   // Chat
   showChatAttachments: true,
 };

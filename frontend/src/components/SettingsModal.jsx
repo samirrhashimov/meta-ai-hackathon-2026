@@ -12,7 +12,7 @@ import {
 import { api } from "../api";
 import { ACCENT_PRESETS, currentAccent } from "../accent";
 import { DEFAULT_SETTINGS } from "../settings";
-import Modal from "./Modal";
+import Modal, { Kbd } from "./Modal";
 
 function Section({ title, desc, children }) {
   return (
@@ -134,15 +134,18 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
         <div className="glass w-full max-w-lg overflow-hidden rounded-2xl">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
             <h3 className="text-sm font-semibold text-neutral-100">Settings</h3>
-            <button
-              onClick={() => {
-                onChange(DEFAULT_SETTINGS);
-              }}
-              title="Restore defaults"
-              className="rounded-lg px-2 py-1 text-xs text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
-            >
-              Reset all
-            </button>
+            <span className="flex items-center gap-2">
+              <Kbd>Esc</Kbd>
+              <button
+                onClick={() => {
+                  onChange(DEFAULT_SETTINGS);
+                }}
+                title="Restore defaults"
+                className="rounded-lg px-2 py-1 text-xs text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
+              >
+                Reset all
+              </button>
+            </span>
           </div>
 
           <div className="max-h-[70vh] overflow-y-auto">
@@ -211,7 +214,7 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                 {testResult && (
                   <span
                     className={`flex items-center gap-1 text-xs ${
-                      testResult.ok ? "text-emerald-300" : "text-red-300"
+                      testResult.ok ? "text-emerald-300" : "danger-text"
                     }`}
                   >
                     {testResult.ok && <LuCheck size={13} />}
@@ -249,6 +252,27 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                       onClick={() => set({ editorFont: o.v })}
                       className={`flex-1 rounded-lg px-2 py-1.5 text-xs ${
                         settings.editorFont === o.v
+                          ? `border ${acc.softBorder} ${acc.softBg} ${acc.softText}`
+                          : "border border-white/10 text-neutral-400 hover:bg-white/5"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Theme">
+                <div className="flex gap-1.5">
+                  {[
+                    { v: "dark", label: "Dark" },
+                    { v: "light", label: "Light" },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      title={o.label}
+                      onClick={() => set({ theme: o.v })}
+                      className={`flex-1 rounded-lg px-2 py-1.5 text-xs ${
+                        (settings.theme || "dark") === o.v
                           ? `border ${acc.softBorder} ${acc.softBg} ${acc.softText}`
                           : "border border-white/10 text-neutral-400 hover:bg-white/5"
                       }`}
@@ -347,7 +371,7 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                 {!confirmWipe ? (
                   <button
                     onClick={() => setConfirmWipe(true)}
-                    className="flex items-center gap-1.5 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-1.5 text-xs text-red-200 hover:bg-red-400/20"
+                    className="flex items-center gap-1.5 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-1.5 text-xs danger-text hover:bg-red-400/20"
                   >
                     <LuTrash2 size={13} />
                     Delete everything
@@ -550,17 +574,18 @@ function ColorPickerModal({ initial, onSave, onClose }) {
           <div className="mt-4 flex justify-end gap-2">
             <button
               onClick={close}
-              className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
             >
-              Cancel
+              Cancel <Kbd>Esc</Kbd>
             </button>
             <button
+              data-modal-primary
               onClick={() => onSave(hex)}
               disabled={!/^#[0-9a-fA-F]{6}$/.test(hex)}
-              className="rounded-lg px-4 py-1.5 text-sm font-medium text-[#06202a] disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium text-[#06202a] disabled:opacity-40"
               style={{ background: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#52525b" }}
             >
-              Use color
+              Use color <Kbd>Enter</Kbd>
             </button>
           </div>
         </div>

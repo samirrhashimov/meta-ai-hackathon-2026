@@ -26,6 +26,11 @@ let mermaidSeq = 0;
 function MermaidCardRenderer(code) {
   const el = document.createElement("div");
   try {
+    // Diagrams follow the app theme (dark diagrams have white text).
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: document.documentElement.dataset.theme === "light" ? "default" : "dark",
+    });
     mermaid.render("mmd" + Date.now().toString(36) + (mermaidSeq++).toString(36), code, (svg) => {
       el.innerHTML = svg;
     });
@@ -261,7 +266,7 @@ export default function NoteEditor({ note, active, onSave, onDelete, onAttach, o
         <button
           onClick={() => onDelete(note._id, note.title)}
           title="Delete note"
-          className="min-w-16 rounded-md px-3 py-1 text-center text-sm font-medium text-neutral-500 hover:bg-red-400/10 hover:text-red-300"
+          className="min-w-16 rounded-md px-3 py-1 text-center text-sm font-medium text-neutral-500 hover:bg-red-400/10 danger-hover"
         >
           Delete
         </button>

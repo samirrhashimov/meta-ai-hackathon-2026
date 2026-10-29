@@ -9,14 +9,14 @@ export function accentClasses() {
     solid: "bg-[var(--acc)] hover:bg-[var(--acc-bright)] text-[#06202a]",
     softBg: "bg-[color-mix(in_srgb,var(--acc)_12%,transparent)]",
     softBgStrong: "bg-[color-mix(in_srgb,var(--acc)_18%,transparent)]",
-    softText: "text-[var(--acc-pale)]",
+    softText: "text-[var(--acc-soft-text)]",
     softBorder: "border-[color-mix(in_srgb,var(--acc)_30%,transparent)]",
     softHover: "hover:bg-[color-mix(in_srgb,var(--acc)_12%,transparent)]",
     softTextHover: "hover:text-[var(--acc-pale)]",
     borderHover:
       "hover:border-[color-mix(in_srgb,var(--acc)_45%,transparent)]",
     text: "text-[var(--acc)]",
-    textDim: "text-[color-mix(in_srgb,var(--acc)_70%,transparent)]",
+    textDim: "text-[var(--acc-dim-text)]",
     dot: "bg-[color-mix(in_srgb,var(--acc)_70%,transparent)]",
     caret: "caret-[var(--acc)]",
     selection: "selection:bg-[color-mix(in_srgb,var(--acc)_30%,transparent)]",
@@ -62,6 +62,8 @@ function rgba(hex, alpha) {
 
 // Real colors for canvas/SVG use: presets resolve to their hex,
 // a custom "#rrggbb" derives bright/pale/dim variants the same way.
+const INKS = { cyan: "#0e7490", emerald: "#065f46", amber: "#92400e", rose: "#9f1239" };
+
 export function accentHexes(value) {
   const found = ACCENT_PRESETS.find((p) => p.v === value);
   const hex = found ? found.c : /^#[0-9a-fA-F]{6}$/.test(value || "") ? value : "#22d3ee";
@@ -71,6 +73,8 @@ export function accentHexes(value) {
     bright: mix(hex, "#ffffff", 0.35),
     pale: mix(hex, "#ffffff", 0.72),
     dim: rgba(hex, 0.55),
+    // Readable-on-white variant for text/icons in light mode.
+    deep: found ? INKS[found.v] : mix(hex, "#000000", 0.4),
   };
 }
 
@@ -84,6 +88,8 @@ export function applyAccentVars(value) {
     "--acc",
     "--acc-bright",
     "--acc-pale",
+    "--acc-soft-text",
+    "--acc-ink",
     "--acc-a65b",
     "--acc-a55b",
     "--acc-a35b",
@@ -103,10 +109,15 @@ export function applyAccentVars(value) {
   const x = accentHexes(value);
   const [r, g, b] = hexToRgb(x.hex);
   root.removeAttribute("data-accent");
+  const light = (loadSettings().theme || "dark") === "light";
   const set = (k, v) => style.setProperty(k, v);
   set("--acc", x.hex);
   set("--acc-bright", x.bright);
   set("--acc-pale", x.pale);
+  set("--acc-ink", mix(x.hex, "#000000", 0.45));
+  // Selected text: pale on dark glass, deep ink on light glass.
+  set("--acc-soft-text", light ? mix(x.hex, "#000000", 0.45) : x.pale);
+  set("--acc-dim-text", light ? mix(x.hex, "#000000", 0.4) : `color-mix(in srgb, ${x.hex} 70%, transparent)`);
   set("--acc-a65b", rgba(x.bright, 0.65));
   set("--acc-a55b", rgba(x.bright, 0.55));
   set("--acc-a35b", rgba(x.bright, 0.35));

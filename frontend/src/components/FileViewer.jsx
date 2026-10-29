@@ -110,7 +110,7 @@ export default function FileViewer({ file, active, onSaveContent, onSaveTags, on
         <button
           onClick={() => onDelete(file._id, file.name)}
           title="Delete file"
-          className="min-w-16 shrink-0 rounded-md px-3 py-1 text-center text-sm font-medium text-neutral-500 hover:bg-red-400/10 hover:text-red-300"
+          className="min-w-16 shrink-0 rounded-md px-3 py-1 text-center text-sm font-medium text-neutral-500 hover:bg-red-400/10 danger-hover"
         >
           Delete
         </button>

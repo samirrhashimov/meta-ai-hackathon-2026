@@ -16,6 +16,18 @@ const LINK_STYLE = {
   folder: { color: "rgba(228,228,231,0.08)", width: 1, dash: [] },
 };
 
+// Theme-aware wikilink legend swatch (deep ink on light, dim glow on dark).
+function LegendSwatch() {
+  const x = accentHexes(loadSettings().accent);
+  const light = document.documentElement.dataset.theme === "light";
+  return (
+    <span
+      className="mr-1 inline-block h-px w-4 align-middle"
+      style={{ background: light ? x.deep : x.dim }}
+    />
+  );
+}
+
 // Interactive knowledge graph: notes + folders as nodes, [[WikiLinks]],
 // shared tags, folder structure and AI-suggested topics as edges.
 
@@ -222,11 +234,26 @@ export default function GraphView({ onOpenNote }) {
       ctx.scale(cam.k, cam.k);
 
       const hx = accentHexes(loadSettings().accent);
+      const lightMode = document.documentElement.dataset.theme === "light";
+      if (lightMode) {
+        hx.hex = hx.deep;
+        hx.dim = hx.deep;
+      }
+      const ink = {
+        tag: {
+          ...LINK_STYLE.tag,
+          color: lightMode ? "rgba(9,9,11,0.20)" : LINK_STYLE.tag.color,
+        },
+        folder: {
+          ...LINK_STYLE.folder,
+          color: lightMode ? "rgba(9,9,11,0.08)" : LINK_STYLE.folder.color,
+        },
+      };
       for (const l of links) {
         const s =
           l.type === "wikilink"
             ? { color: hx.dim, width: 1.2, dash: [] }
-            : LINK_STYLE[l.type] || LINK_STYLE.tag;
+            : ink[l.type] || LINK_STYLE[l.type] || LINK_STYLE.tag;
         ctx.strokeStyle = s.color;
         ctx.globalAlpha = near ? (near.has(l.a.id) && near.has(l.b.id) ? 1 : 0.08) : 1;
         ctx.lineWidth = s.width / cam.k;
@@ -243,7 +270,8 @@ export default function GraphView({ onOpenNote }) {
         const r = (n.kind === "folder" ? 8 : 5) + Math.sqrt(n.deg || 0) * 1.6;
         ctx.globalAlpha = dim(n.id);
         if (n.kind === "folder") {
-          ctx.strokeStyle = n.id === hov ? "#e4e4e7" : "#71717a";
+          ctx.strokeStyle =
+            n.id === hov ? (lightMode ? "#18181b" : "#e4e4e7") : "#71717a";
           ctx.lineWidth = (n.id === hov ? 2.4 : 1.6) / cam.k;
           ctx.beginPath();
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
@@ -256,7 +284,14 @@ export default function GraphView({ onOpenNote }) {
         }
         // Labels: always when zoomed in, otherwise hover neighborhood only.
         if (cam.k > 0.55 || (near && near.has(n.id))) {
-          ctx.fillStyle = n.kind === "folder" ? "#d4d4d8" : "#a1a1aa";
+          ctx.fillStyle =
+            n.kind === "folder"
+              ? lightMode
+                ? "#3f3f46"
+                : "#d4d4d8"
+              : lightMode
+                ? "#52525b"
+                : "#a1a1aa";
           ctx.font = `${11 / cam.k}px Inter, system-ui, sans-serif`;
           ctx.textAlign = "center";
           ctx.fillText(n.label.slice(0, 28), n.x, n.y + r + 13 / cam.k);
@@ -478,10 +513,7 @@ export default function GraphView({ onOpenNote }) {
           {visible.nodes.length} nodes · {visible.links.length} links
         </p>
         <p>
-          <span
-            className="mr-1 inline-block h-px w-4 align-middle"
-            style={{ background: acc.hexDim }}
-          />
+          <LegendSwatch />
           WikiLink ({counts.wikilink})
         </p>
         <p>
@@ -515,7 +547,7 @@ export default function GraphView({ onOpenNote }) {
       )}
       {!loading && error && (
         <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-          <p className="text-sm text-red-300">{error}</p>
+          <p className="text-sm danger-text">{error}</p>
         </div>
       )}
       {!loading && !error && visible.nodes.length === 0 && (

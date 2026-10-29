@@ -30,7 +30,7 @@ export default function Dashboard() {
   }, []);
 
   if (loading) return <p className="p-6 text-sm text-neutral-500">Loading dashboard...</p>;
-  if (error) return <p className="p-6 text-sm text-red-300">{error}</p>;
+  if (error) return <p className="p-6 text-sm danger-text">{error}</p>;
 
   const { stats, digest, digestStale, digestError } = data;
 

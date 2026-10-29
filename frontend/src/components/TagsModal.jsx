@@ -2,7 +2,7 @@ import { useState } from "react";
 import { LuFileText, LuSearch, LuX } from "react-icons/lu";
 import { FileTypeIcon } from "./FileViewer";
 import { currentAccent } from "../accent";
-import Modal from "./Modal";
+import Modal, { Kbd } from "./Modal";
 
 // Wide tags browser: searchable + sortable tag list on the left,
 // the selected tag's notes and files on the right.
@@ -47,13 +47,16 @@ export default function TagsModal({ notes, files, onOpenNote, onOpenFile, onClos
         <div className="glass flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl p-5">
           <div className="flex shrink-0 items-center justify-between">
             <h3 className="text-sm font-semibold text-neutral-100">Tags</h3>
-            <button
-              onClick={close}
-              title="Close"
-              className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
-            >
-              <LuX size={16} />
-            </button>
+            <span className="flex items-center gap-2">
+              <Kbd>Esc</Kbd>
+              <button
+                onClick={close}
+                title="Close (Esc)"
+                className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-neutral-200"
+              >
+                <LuX size={16} />
+              </button>
+            </span>
           </div>
 
         {grouped.size === 0 ? (

@@ -37,6 +37,8 @@ export const api = {
     request("/api/ai/organize", { method: "POST", body: JSON.stringify({ noteId }) }),
   organizeFile: (fileId) =>
     request("/api/ai/organize-file", { method: "POST", body: JSON.stringify({ fileId }) }),
+  undoOrganize: (payload) =>
+    request("/api/ai/organize/undo", { method: "POST", body: JSON.stringify(payload) }),
 
   chat: (message, model, attachments) =>
     request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message, model, attachments }) }),

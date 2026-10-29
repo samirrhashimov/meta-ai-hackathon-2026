@@ -5,7 +5,7 @@ import { encodeWav } from "../utils/audio";
 import { detectMention, insertTag } from "../utils/mentions";
 import { FileTypeIcon } from "./FileViewer";
 import { currentAccent } from "../accent";
-import Modal from "./Modal";
+import Modal, { Kbd } from "./Modal";
 
 // Landing suggestion cards: short label shown, full prompt goes to the box.
 const SUGGESTIONS = [
@@ -132,7 +132,7 @@ export default function AiPanel({ onChanged, variant = "panel", notes = [], fold
             <LuChevronDown size={13} />
           </button>
           {modelOpen && (
-            <div className="pop-in absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-white/10 bg-[#0a1016]/95 p-1 text-sm shadow-xl shadow-black/50 backdrop-blur-xl">
+            <div className="glass-menu pop-in absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl p-1 text-sm">
               {models.map((m) => (
                 <button
                   key={m}
@@ -706,7 +706,7 @@ function Chat({ onChanged, variant, model, notes, folders, files, showAttachment
                       type="button"
                       onClick={() => revertMessage(m)}
                       title="Undo this answer's changes"
-                      className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-neutral-500 hover:text-amber-200"
+                      className="warn-hover flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-neutral-500"
                     >
                       <LuUndo2 size={12} />
                       Undo
@@ -793,7 +793,7 @@ function Chat({ onChanged, variant, model, notes, folders, files, showAttachment
             <div
               ref={echoRef}
               aria-hidden="true"
-              className={`pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap break-words border border-transparent pl-12 pr-[84px] leading-relaxed text-[#e4e4e7] ${
+              className={`pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap break-words border border-transparent pl-12 pr-[84px] leading-relaxed text-neutral-200 ${
                 home ? "rounded-[24px] py-3 text-[15px]" : "rounded-[20px] py-2.5 text-sm"
               }`}
             >
@@ -862,7 +862,7 @@ function Chat({ onChanged, variant, model, notes, folders, files, showAttachment
             title={listening ? "Stop recording" : "Voice input (Muse)"}
             className={`absolute right-11 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full disabled:opacity-40 ${
               listening
-                ? "bg-red-400/20 text-red-300 hover:bg-red-400/30"
+                ? "bg-red-400/20 danger-text hover:bg-red-400/30"
                 : "text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
             }`}
           >
@@ -882,7 +882,7 @@ function Chat({ onChanged, variant, model, notes, folders, files, showAttachment
           </button>
           </div>
         </form>
-        {speechError && <p className="mt-1 px-2 text-xs text-red-300">{speechError}</p>}
+        {speechError && <p className="mt-1 px-2 text-xs danger-text">{speechError}</p>}
       </div>
 
       {reverting && (
@@ -899,15 +899,16 @@ function Chat({ onChanged, variant, model, notes, folders, files, showAttachment
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   onClick={close}
-                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
                 >
-                  Cancel
+                  Cancel <Kbd>Esc</Kbd>
                 </button>
                 <button
+                  data-modal-primary
                   onClick={confirmRevert}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium ${acc.solid}`}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${acc.solid}`}
                 >
-                  Restore
+                  Restore <Kbd>Enter</Kbd>
                 </button>
               </div>
             </div>
