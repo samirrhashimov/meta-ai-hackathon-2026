@@ -292,14 +292,12 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                   <button
                     title={isCustomHex ? `Custom ${settings.accent}` : "Custom color..."}
                     onClick={() => setPickingColor(true)}
-                    className={`flex h-8 flex-1 items-center justify-center rounded-lg border ${
-                      isCustomHex
-                        ? "border-white/40"
-                        : "border-white/10 hover:border-white/25"
+                    className={`flex h-8 flex-1 items-center justify-center rounded-lg ${
+                      isCustomHex ? "border-2" : "border border-white/10 hover:border-white/25"
                     }`}
                     style={
                       isCustomHex
-                        ? { background: `${settings.accent}22` }
+                        ? { background: `${settings.accent}22`, borderColor: settings.accent }
                         : {
                             background:
                               "conic-gradient(#f87171,#fbbf24,#34d399,#38bdf8,#a78bfa,#f87171)",
@@ -309,14 +307,33 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                   >
                     {isCustomHex ? (
                       <span
-                        className="h-3.5 w-3.5 rounded-full"
+                        className="flex h-4 w-4 items-center justify-center rounded-full"
                         style={{ background: settings.accent }}
-                      />
+                      >
+                        <LuCheck size={11} strokeWidth={3.5} color="#000" />
+                      </span>
                     ) : (
                       <LuPalette size={14} className="text-[#06202a]" />
                     )}
                   </button>
                 </div>
+                {isCustomHex && (
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    <span
+                      className="rounded-md px-2 py-0.5 font-medium"
+                      style={{
+                        background: `${settings.accent}1f`,
+                        color: settings.accent,
+                        border: `1px solid ${settings.accent}66`,
+                      }}
+                    >
+                      Custom
+                    </span>
+                    <span className="font-mono uppercase text-neutral-500">
+                      {settings.accent}
+                    </span>
+                  </div>
+                )}
               </Field>
               <div>
                 <button
@@ -370,7 +387,7 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                   <button
                     onClick={wipeAll}
                     disabled={working}
-                    className="flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-xs font-medium text-[#2a0a0a] hover:bg-red-300 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg bg-red-400 px-3 py-1.5 text-xs font-medium text-[#2a0a0a] hover:bg-red-500 hover:text-white disabled:opacity-50"
                   >
                     {working && <LuLoaderCircle size={13} className="animate-spin" />}
                     Click again to confirm

@@ -1254,7 +1254,7 @@ export default function App() {
                 <button
                   data-modal-primary
                   onClick={confirmDeleteNote}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-500 hover:text-white"
                 >
                   Delete <Kbd>Enter</Kbd>
                 </button>
@@ -1283,7 +1283,7 @@ export default function App() {
                 <button
                   data-modal-primary
                   onClick={confirmDeleteFile}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-500 hover:text-white"
                 >
                   Delete <Kbd>Enter</Kbd>
                 </button>
@@ -1313,7 +1313,7 @@ export default function App() {
                 <button
                   data-modal-primary
                   onClick={confirmDeleteFolder}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-500 hover:text-white"
                 >
                   Delete <Kbd>Enter</Kbd>
                 </button>
@@ -1351,7 +1351,7 @@ export default function App() {
                 <button
                   data-modal-primary
                   onClick={confirmBulkDelete}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-500 hover:text-white"
                 >
                   Delete <Kbd>Enter</Kbd>
                 </button>
@@ -1384,7 +1384,7 @@ export default function App() {
                     closeTab(closingId);
                     setClosingId(null);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400/90 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-400 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-500 hover:text-white"
                 >
                   Discard <Kbd>Enter</Kbd>
                 </button>
