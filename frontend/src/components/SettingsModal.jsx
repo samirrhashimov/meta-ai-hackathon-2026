@@ -70,6 +70,10 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null); // { ok, message }
   const [showKey, setShowKey] = useState(false);
+  // Password managers love filling anything shaped like a password field
+  // (this input defaults to type="password"). It stays read-only until
+  // focused, so autofill never drops a phantom key in here.
+  const [keyArmed, setKeyArmed] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [working, setWorking] = useState(false);
   const [pickingColor, setPickingColor] = useState(false);
@@ -146,6 +150,12 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                     onChange={(e) => set({ apiKey: e.target.value })}
                     placeholder="e.g. muse-..."
                     className={`${inputCls} pr-9`}
+                    name="flama-meta-api-key"
+                    autoComplete="off"
+                    spellCheck={false}
+                    readOnly={!keyArmed}
+                    onFocus={() => setKeyArmed(true)}
+                    onBlur={() => setKeyArmed(false)}
                   />
                   <button
                     type="button"
@@ -175,6 +185,9 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                       onChange={(e) => set({ apiBase: e.target.value })}
                       placeholder="https://api.meta.ai/v1"
                       className={inputCls}
+                      name="flama-meta-base-url"
+                      autoComplete="off"
+                      spellCheck={false}
                     />
                   </Field>
                   <Field label="Custom model" hint="Added to the picker.">
@@ -183,6 +196,9 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                       onChange={(e) => set({ customModel: e.target.value })}
                       placeholder="e.g. muse-spark-1.3"
                       className={inputCls}
+                      name="flama-custom-model"
+                      autoComplete="off"
+                      spellCheck={false}
                     />
                   </Field>
                 </div>

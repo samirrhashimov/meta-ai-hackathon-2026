@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   LuArrowRight,
   LuChartColumn,
@@ -10,11 +11,48 @@ import {
 import { currentAccent } from "../accent";
 import logo from "../assets/flama_icon_dark.png";
 
+// One typing demo after another: title, tab, tag and toast always match.
+const MOCK_SCENARIOS = [
+  { short: "gym log", title: "Gym log — legs day", folder: "Sports", tag: "sports" },
+  { short: "thesis", title: "Thesis draft v2", folder: "Thesis", tag: "research" },
+  { short: "recipe", title: "Carbonara recipe", folder: "Recipes", tag: "food" },
+  { short: "japan trip", title: "Japan trip plan", folder: "Travel", tag: "travel" },
+  { short: "meeting", title: "Q4 meeting notes", folder: "Work", tag: "work" },
+  { short: "dune review", title: "Dune book review", folder: "Books", tag: "books" },
+  { short: "ideas", title: "Startup ideas", folder: "Ideas", tag: "ideas" },
+];
+
 // Public landing page: animated hero, feature grid, promo-video slot,
 // three showcase blocks with illustration slots, and a closing CTA.
 // Illustration/video files are dropped in later — every slot is labeled
 // with the copy it belongs to.
 export default function Landing() {
+  // Typewriter for the mock editor: types the scenario title char by char
+  // (so the caret always sits exactly at the text end), holds, then jumps
+  // to a different random scenario.
+  const [sci, setSci] = useState(0);
+  const [typed, setTyped] = useState("");
+  useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const full = MOCK_SCENARIOS[sci].title;
+    if (typed.length < full.length) {
+      if (reduced) {
+        setTyped(full);
+        return;
+      }
+      const t = setTimeout(() => setTyped(full.slice(0, typed.length + 1)), 85);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => {
+      setTyped("");
+      setSci((i) => (i + 1 + Math.floor(Math.random() * (MOCK_SCENARIOS.length - 1))) % MOCK_SCENARIOS.length);
+    }, reduced ? 6000 : 2600);
+    return () => clearTimeout(t);
+  }, [typed, sci]);
+  const scenario = MOCK_SCENARIOS[sci];
+  const done = typed.length === scenario.title.length && typed.length > 0;
+  // The inactive tab previews the next scenario, like a real tab strip.
+  const nextScenario = MOCK_SCENARIOS[(sci + 1) % MOCK_SCENARIOS.length];
   const acc = currentAccent();
   return (
     <div className="land-root">
@@ -44,10 +82,6 @@ export default function Landing() {
       <main>
         {/* Hero */}
         <section className="land-hero">
-          <p className="land-badge land-rise" style={{ "--land-d": "40ms" }}>
-            <LuSparkles size={13} />
-            AI-native notes, Obsidian-style
-          </p>
           <h1 className="land-title land-rise" style={{ "--land-d": "120ms" }}>
             Notes that <span className={acc.text}>file themselves</span>
           </h1>
@@ -67,42 +101,76 @@ export default function Landing() {
             </a>
           </div>
 
-          {/* Animated app preview (pure CSS, no screenshots needed). */}
+          {/* Animated mini-Flama: navbar tabs, Files tree, note editor,
+              Assistant chat — plus the filing toast looping over it. */}
           <div className="land-mock land-rise" style={{ "--land-d": "360ms" }} aria-hidden="true">
             <div className="land-mock-bar">
               <span className="land-dot" />
               <span className="land-dot" />
               <span className="land-dot" />
-              <span className="land-mock-url">flama — my notes</span>
+              <span className="land-mock-tabs">
+                <span className="land-mock-tab land-on" key={sci}>
+                  {scenario.short}
+                </span>
+                <span className="land-mock-tab">{nextScenario.short}</span>
+              </span>
             </div>
             <div className="land-mock-body">
               <div className="land-mock-side">
-                <span className="land-mock-row land-w60" />
-                <span className="land-mock-row land-w80 land-indent" />
-                <span className="land-mock-row land-w70 land-indent" />
-                <span className="land-mock-row land-w50" />
-                <span className="land-mock-row land-w75 land-indent" />
+                <span className="land-mock-pane">Files</span>
+                <span className="land-mock-folder">
+                  <span className="land-w60" />
+                </span>
+                <span className="land-mock-note land-indent land-ai">
+                  <span className="land-w80" />
+                </span>
+                <span className="land-mock-folder">
+                  <span className="land-w50" />
+                </span>
+                <span className="land-mock-note land-indent">
+                  <span className="land-w75" />
+                </span>
+                <span className="land-mock-note land-indent">
+                  <span className="land-w60" />
+                </span>
               </div>
               <div className="land-mock-main">
-                <span className="land-mock-h" />
-                <span className="land-type">
-                  <span className="land-type-text">The AI filed this into Sports…</span>
+                <span className="land-mock-pane">Note</span>
+                <span className="land-type land-mock-title">
+                  <span className="land-type-text">{typed}</span>
                   <span className="land-caret" />
                 </span>
-                <div className="land-mock-bars">
-                  <span style={{ "--w": "82%" }} />
-                  <span style={{ "--w": "64%" }} />
-                  <span style={{ "--w": "74%" }} />
-                  <span style={{ "--w": "48%" }} />
-                </div>
+                <span className="land-mock-row land-w90" />
+                <span className="land-mock-check">
+                  <span className="land-mock-box" />
+                  <span className="land-w70" />
+                </span>
+                <span className="land-mock-row land-w80" />
+                <span className="land-mock-tag">#{scenario.tag}</span>
               </div>
               <div className="land-mock-chat">
-                <span className="land-mock-bubble land-w90" />
-                <span className="land-mock-bubble land-w70" />
-                <span className="land-mock-bubble land-accent land-w80" />
-                <span className="land-mock-bubble land-w60" />
+                <span className="land-mock-pane">Assistant</span>
+                <span className="land-mock-line">
+                  <span className="land-mock-avatar" />
+                  <span className="land-mock-bubble land-w90" />
+                </span>
+                <span className="land-mock-line land-right">
+                  <span className="land-mock-bubble land-accent land-w70" />
+                </span>
+                <span className="land-mock-line">
+                  <span className="land-mock-avatar" />
+                  <span className="land-mock-bubble land-w80" />
+                </span>
+                <span className="land-mock-input">
+                  <span />
+                </span>
               </div>
             </div>
+            {done && (
+              <div className="land-mock-toast" key={sci}>
+                Filed into {scenario.folder}
+              </div>
+            )}
           </div>
         </section>
 

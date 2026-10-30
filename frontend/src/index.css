@@ -1044,8 +1044,10 @@ html[data-theme="light"] .vis-shimmer {
   margin-top: 1.6rem;
   flex-wrap: wrap;
 }
-/* Animated app preview: three glass panes with typing + growing bars. */
+/* Animated mini-Flama: navbar tabs, Files tree, note editor,
+   Assistant chat, and the filing toast looping over it. */
 .land-mock {
+  position: relative;
   margin: 2.8rem auto 0;
   max-width: 60rem;
   border-radius: 1rem;
@@ -1064,30 +1066,53 @@ html[data-theme="light"] .vis-shimmer {
   padding: 0.6rem 0.9rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+/* macOS traffic lights. */
 .land-dot {
   width: 0.65rem;
   height: 0.65rem;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.16);
 }
-.land-dot:first-child {
-  background: var(--acc-a45);
+.land-dot:nth-child(1) {
+  background: #ff5f57;
 }
-.land-mock-url {
-  margin-left: 0.5rem;
-  font-size: 0.72rem;
+.land-dot:nth-child(2) {
+  background: #febc2e;
+}
+.land-dot:nth-child(3) {
+  background: #28c840;
+}
+/* Chrome-style tabs in the mock navbar. */
+.land-mock-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: 0.6rem;
+}
+.land-mock-tab {
+  font-size: 0.68rem;
+  padding: 0.22rem 0.7rem;
+  border-radius: 0.45rem 0.45rem 0 0;
   color: #71717a;
+  background: rgba(255, 255, 255, 0.04);
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.land-mock-tab.land-on {
+  color: var(--acc-soft-text);
+  background: var(--acc-a13);
 }
 .land-mock-body {
   display: grid;
   grid-template-columns: 1fr 1.4fr 1fr;
   gap: 0.9rem;
   padding: 0.9rem;
-  min-height: 15rem;
+  min-height: 16rem;
 }
 .land-mock-side,
 .land-mock-main,
 .land-mock-chat {
+  position: relative;
   border-radius: 0.65rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -1096,8 +1121,15 @@ html[data-theme="light"] .vis-shimmer {
   flex-direction: column;
   gap: 0.5rem;
 }
+.land-mock-pane {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #52525b;
+  margin-bottom: 0.1rem;
+}
 .land-mock-row,
-.land-mock-h,
 .land-mock-bubble {
   display: block;
   height: 0.6rem;
@@ -1107,39 +1139,64 @@ html[data-theme="light"] .vis-shimmer {
 .land-mock-row.land-indent {
   margin-left: 1rem;
 }
-.land-mock-h {
-  height: 1.1rem;
-  width: 55%;
+/* Folder row: accent folder glyph + name bar. */
+.land-mock-folder {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.land-mock-folder::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.7rem;
+  height: 0.55rem;
+  border-radius: 0.15rem;
+  background: var(--acc-a45);
+}
+.land-mock-folder > span,
+.land-mock-note > span {
+  display: block;
+  height: 0.55rem;
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.12);
+}
+.land-mock-note {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: 1rem;
+  border-radius: 0.35rem;
+  padding: 0.25rem 0.4rem;
+}
+.land-mock-note::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.6rem;
+  border-radius: 0.1rem;
   background: rgba(255, 255, 255, 0.16);
+}
+/* The note being filed glows in accent. */
+.land-mock-note.land-ai {
+  background: var(--acc-a07);
+  border: 1px solid var(--acc-a18);
 }
 .land-type {
   display: flex;
   align-items: center;
   gap: 2px;
-  min-height: 1.2rem;
-  font-size: 0.72rem;
-  color: var(--acc-soft-text);
+  min-height: 1.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fafafa;
 }
+/* Typed by JS char-by-char, so the caret always ends exactly at the text. */
 .land-type-text {
-  overflow: hidden;
   white-space: nowrap;
-  animation: landType 5s steps(34) infinite;
-}
-@keyframes landType {
-  0% {
-    width: 0;
-  }
-  55%,
-  85% {
-    width: 100%;
-  }
-  100% {
-    width: 0;
-  }
 }
 .land-caret {
   width: 2px;
-  height: 0.85rem;
+  height: 0.95rem;
   background: var(--acc);
   animation: landBlink 1s steps(1) infinite;
 }
@@ -1148,33 +1205,111 @@ html[data-theme="light"] .vis-shimmer {
     opacity: 0;
   }
 }
-.land-mock-bars {
+/* Checkbox task line. */
+.land-mock-check {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 0.3rem;
+  align-items: center;
+  gap: 0.45rem;
 }
-.land-mock-bars span {
-  display: block;
+.land-mock-box {
+  flex-shrink: 0;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.2rem;
+  border: 1.5px solid var(--acc-a65b);
+  background: var(--acc-a07);
+}
+.land-mock-check > span:last-child {
+  flex: 1;
   height: 0.55rem;
   border-radius: 0.3rem;
-  background: var(--acc-a35);
-  animation: landBarGrow 5s ease-in-out infinite;
+  background: rgba(255, 255, 255, 0.1);
 }
-@keyframes landBarGrow {
-  0% {
-    width: 8%;
-  }
-  55%,
-  85% {
-    width: var(--w);
-  }
-  100% {
-    width: 8%;
-  }
+.land-mock-tag {
+  align-self: flex-start;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--acc-soft-text);
+  background: var(--acc-a07);
+  border: 1px solid var(--acc-a18);
+  border-radius: 9999px;
+  padding: 0.15rem 0.6rem;
+}
+/* Assistant chat lines with avatar dots. */
+.land-mock-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.land-mock-line.land-right {
+  justify-content: flex-end;
+}
+.land-mock-avatar {
+  flex-shrink: 0;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 9999px;
+  background: var(--acc-a35);
 }
 .land-mock-bubble {
   height: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+.land-mock-line.land-right .land-mock-bubble {
+  flex: none;
+}
+/* Rounded chat input with a send dot. */
+.land-mock-input {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  height: 1.7rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0 0.25rem 0 0.7rem;
+}
+.land-mock-input::before {
+  content: "";
+  flex: 1;
+  height: 0.5rem;
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+.land-mock-input span {
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 9999px;
+  background: var(--acc);
+}
+/* Filing toast: pops in once typing finishes (JS remounts it per scenario). */
+.land-mock-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--acc-soft-text);
+  background: rgba(10, 12, 16, 0.85);
+  border: 1px solid var(--acc-a35);
+  border-radius: 9999px;
+  padding: 0.35rem 0.9rem;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  animation: landToastIn 0.35s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+  pointer-events: none;
+}
+@keyframes landToastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
 }
 .land-mock-bubble.land-accent {
   background: var(--acc-a35);
@@ -1523,6 +1658,15 @@ html[data-theme="light"] .land-mock {
   border-color: rgba(9, 9, 11, 0.1);
   box-shadow: 0 24px 70px rgba(9, 9, 11, 0.18);
 }
+html[data-theme="light"] .land-mock-pane {
+  color: #a1a1aa;
+}
+html[data-theme="light"] .land-type {
+  color: #18181b;
+}
+html[data-theme="light"] .land-mock-toast {
+  background: rgba(255, 255, 255, 0.9);
+}
 html[data-theme="light"] .land-field-box {
   border-color: rgba(9, 9, 11, 0.14);
   background: rgba(9, 9, 11, 0.03);
@@ -1567,9 +1711,8 @@ html[data-theme="light"] .land-footer {
 @media (prefers-reduced-motion: reduce) {
   .land-orb,
   .land-rise,
-  .land-type-text,
   .land-caret,
-  .land-mock-bars span,
+  .land-mock-toast,
   .land-video-play {
     animation: none;
   }
