@@ -9,8 +9,11 @@ import { aiEnabled, chatJson } from "./ai.js";
 // - "wikilink": explicit [[Note Title]] references
 // - "tag": notes sharing at least one tag
 // - "ai": model-suggested topical links (cached until notes change)
-export async function buildGraph({ refresh = false } = {}, creds) {
-  const [notes, folders] = await Promise.all([Note.find().lean(), Folder.find().lean()]);
+export async function buildGraph({ refresh = false } = {}, creds, userId) {
+  const [notes, folders] = await Promise.all([
+    Note.find({ userId }).lean(),
+    Folder.find({ userId }).lean(),
+  ]);
 
   const fid = (v) => (v ? String(v._id || v) : null);
   const nodes = [
@@ -84,14 +87,14 @@ export async function buildGraph({ refresh = false } = {}, creds) {
   );
   let aiLinks = [];
   try {
-    const cached = await Insight.findOne({ key: "graph-ai-links" }).lean();
+    const cached = await Insight.findOne({ key: "graph-ai-links", userId }).lean();
     if (cached?.data?.stamp === stamp && Array.isArray(cached.data.links)) {
       aiLinks = cached.data.links;
     } else if (aiEnabled(creds) && notes.length > 1) {
       // Never block the graph on the model: serve stale (or empty) AI links
       // now and refresh the cache in the background for the next open.
       if (Array.isArray(cached?.data?.links)) aiLinks = cached.data.links;
-      refreshAiLinks(notes, stamp, creds).catch(() => {});
+      refreshAiLinks(notes, stamp, creds, userId).catch(() => {});
     }
   } catch {
     aiLinks = [];
@@ -103,14 +106,14 @@ export async function buildGraph({ refresh = false } = {}, creds) {
 
 // One background regeneration at a time; failures retry on the next open.
 let aiRefreshing = false;
-async function refreshAiLinks(notes, stamp, creds) {
+async function refreshAiLinks(notes, stamp, creds, userId) {
   if (aiRefreshing) return;
   aiRefreshing = true;
   try {
     const links = await suggestLinks(notes.slice(0, 60), creds);
     await Insight.findOneAndUpdate(
-      { key: "graph-ai-links" },
-      { key: "graph-ai-links", data: { stamp, links }, generatedAt: new Date() },
+      { key: "graph-ai-links", userId },
+      { key: "graph-ai-links", userId, data: { stamp, links }, generatedAt: new Date() },
       { upsert: true }
     );
   } finally {

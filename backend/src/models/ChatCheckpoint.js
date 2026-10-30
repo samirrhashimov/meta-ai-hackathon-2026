@@ -17,6 +17,7 @@ const opSchema = new Schema(
 
 const chatCheckpointSchema = new Schema(
   {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     messageId: { type: Schema.Types.ObjectId, ref: "ChatMessage", required: true, index: true },
     ops: { type: [opSchema], default: [] },
   },

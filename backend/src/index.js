@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { connectDB } from "./config/db.js";
+import authRouter from "./routes/auth.js";
 import foldersRouter from "./routes/folders.js";
 import notesRouter from "./routes/notes.js";
 import uploadRouter from "./routes/upload.js";
@@ -18,6 +19,7 @@ app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
+app.use("/api/auth", authRouter);
 app.use("/api/folders", foldersRouter);
 app.use("/api/notes", notesRouter);
 app.use("/api/upload", uploadRouter);
@@ -31,10 +33,14 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 // Unknown route -> 404
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
-// Central error handler: turns client errors into 400s.
+// Central error handler: turns client errors into 400s, and honors an
+// explicit status (e.g. 502 from modelError) so the real reason reaches UI.
 app.use((err, req, res, next) => {
   if (err.name === "ValidationError" || err.name === "CastError") {
     return res.status(400).json({ error: err.message });
+  }
+  if (Number.isInteger(err.status) && err.status >= 400 && err.status < 600) {
+    return res.status(err.status).json({ error: err.message });
   }
   if (err.code && String(err.code).startsWith("LIMIT_")) {
     return res.status(400).json({ error: "File too large (max 10MB)" });

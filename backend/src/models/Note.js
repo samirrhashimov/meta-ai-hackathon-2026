@@ -13,6 +13,7 @@ const attachmentSchema = new Schema(
 
 const noteSchema = new Schema(
   {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     title: { type: String, required: [true, "Note title is required"], trim: true },
     content: { type: String, default: "" }, // markdown text
     folderId: { type: Schema.Types.ObjectId, ref: "Folder", default: null }, // null = no folder

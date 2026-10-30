@@ -74,6 +74,18 @@ function extractJson(text) {
   }
 }
 
+// Model-side failures: auth problems (401/403) get a clear, actionable
+// message and a 502 status so the frontend shows it instead of "Server error".
+export function modelError(action, status, body) {
+  const err = new Error(
+    status === 401 || status === 403
+      ? `${action} rejected the API key (${status}). Check Settings → API Connection or backend/.env → META_API_KEY.`
+      : `${action} failed (${status}): ${String(body || "").slice(0, 200)}`
+  );
+  err.status = 502;
+  return err;
+}
+
 export async function chatJson(system, user, creds) {
   const { key, base, model } = creds || config();
   const res = await fetch(`${base}/chat/completions`, {
@@ -90,7 +102,7 @@ export async function chatJson(system, user, creds) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`AI request failed (${res.status}): ${body.slice(0, 200)}`);
+    throw modelError("AI request", res.status, body);
   }
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content || "";
@@ -123,11 +135,15 @@ export async function classifyNote(note, folders, creds) {
 // Locking: a locked note, or anything filed inside a locked folder, is
 // invisible to AI sorting. Locked folders (and everything under them) are
 // never filing targets either.
-async function folderChainLocked(folderId) {
-  let cur = folderId ? await Folder.findById(folderId).select("parentId locked") : null;
+async function folderChainLocked(folderId, userId) {
+  let cur = folderId
+    ? await Folder.findOne({ _id: folderId, userId }).select("parentId locked")
+    : null;
   while (cur) {
     if (cur.locked) return true;
-    cur = cur.parentId ? await Folder.findById(cur.parentId).select("parentId locked") : null;
+    cur = cur.parentId
+      ? await Folder.findOne({ _id: cur.parentId, userId }).select("parentId locked")
+      : null;
   }
   return false;
 }
@@ -155,8 +171,8 @@ function filingTargets(folders) {
 }
 
 // Files a note with AI: picks/creates a folder, writes tags and a summary.
-export async function organizeNote(noteId, creds) {
-  const note = await Note.findById(noteId);
+export async function organizeNote(noteId, creds, userId) {
+  const note = await Note.findOne({ _id: noteId, userId });
   if (!note) {
     const err = new Error("Note not found");
     err.status = 404;
@@ -167,22 +183,24 @@ export async function organizeNote(noteId, creds) {
     err.status = 423;
     throw err;
   }
-  if (note.folderId && (await folderChainLocked(note.folderId))) {
+  if (note.folderId && (await folderChainLocked(note.folderId, userId))) {
     await note.populate("folderId", "name");
     return { note, folder: note.folderId, created: false, skipped: "locked" };
   }
-  const { targets, targetIds } = filingTargets(await Folder.find().sort({ createdAt: 1 }));
+  const { targets, targetIds } = filingTargets(
+    await Folder.find({ userId }).sort({ createdAt: 1 })
+  );
   const result = await classifyNote(note, targets, creds);
 
   let folder = null;
   let created = false;
-  if (result.folderId) folder = await Folder.findById(result.folderId);
+  if (result.folderId) folder = await Folder.findOne({ _id: result.folderId, userId });
   if (!folder) {
     // Don't duplicate a folder with the same name (among filing targets;
     // a same-named locked folder must not receive new notes).
     folder = await Folder.findOne({ name: result.newFolderName, _id: { $in: targetIds } });
     if (!folder) {
-      folder = await Folder.create({ name: result.newFolderName });
+      folder = await Folder.create({ name: result.newFolderName, userId });
       created = true;
     }
   }
@@ -234,16 +252,16 @@ function mergeTags(current, fresh) {
 
 // Fire-and-forget: enriches a note with AI tags without slowing the response.
 // Re-reads the note first so concurrent saves (e.g. organize) are not lost.
-export function tagNoteInBackground(noteId, opts) {
+export function tagNoteInBackground(noteId, opts, userId) {
   if (opts && opts.tagging === false) return;
   const creds = opts && opts.key ? opts : undefined;
   if (!aiEnabled(creds)) return;
   (async () => {
-    const note = await Note.findById(noteId);
+    const note = await Note.findOne({ _id: noteId, userId });
     if (!note) return;
     const fresh = await generateTags(note.title, note.content, creds);
     if (fresh.length === 0) return;
-    const latest = await Note.findById(noteId);
+    const latest = await Note.findOne({ _id: noteId, userId });
     if (!latest) return;
     latest.tags = mergeTags(latest.tags, fresh);
     await latest.save();
@@ -260,20 +278,22 @@ Rules:
 
 // Files an upload with AI: picks/creates a folder, merges tags.
 // Text files contribute a content sample; images/pdfs are judged by name + type.
-export async function organizeFile(fileId, creds) {
-  const file = await File.findById(fileId);
+export async function organizeFile(fileId, creds, userId) {
+  const file = await File.findOne({ _id: fileId, userId });
   if (!file) {
     const err = new Error("File not found");
     err.status = 404;
     throw err;
   }
-  if (file.folderId && (await folderChainLocked(file.folderId))) {
-    const folder = await Folder.findById(file.folderId);
+  if (file.folderId && (await folderChainLocked(file.folderId, userId))) {
+    const folder = await Folder.findOne({ _id: file.folderId, userId });
     const plain = file.toObject();
     delete plain.data;
     return { file: plain, folder, created: false, skipped: "locked" };
   }
-  const { targets, targetIds } = filingTargets(await Folder.find().sort({ createdAt: 1 }));
+  const { targets, targetIds } = filingTargets(
+    await Folder.find({ userId }).sort({ createdAt: 1 })
+  );
   let hint = `Name: ${file.name}\nType: ${file.mimeType || "unknown"}\nSize: ${file.size || 0} bytes`;
   if ((file.mimeType || "").startsWith("text/") && file.data) {
     hint += `\nContent:\n${file.data.toString("utf8").slice(0, 2000)}`;
@@ -289,12 +309,12 @@ export async function organizeFile(fileId, creds) {
 
   let folder = null;
   let created = false;
-  if (result.folderId) folder = await Folder.findById(result.folderId);
+  if (result.folderId) folder = await Folder.findOne({ _id: result.folderId, userId });
   if (!folder) {
     // Don't duplicate a folder with the same name (locked folders excluded).
     folder = await Folder.findOne({ name: result.newFolderName, _id: { $in: targetIds } });
     if (!folder) {
-      folder = await Folder.create({ name: result.newFolderName });
+      folder = await Folder.create({ name: result.newFolderName, userId });
       created = true;
     }
   }
@@ -311,12 +331,12 @@ export async function organizeFile(fileId, creds) {
 }
 
 // Fire-and-forget: enriches an uploaded file with AI tags from its name.
-export function tagFileInBackground(fileId, opts) {
+export function tagFileInBackground(fileId, opts, userId) {
   if (opts && opts.tagging === false) return;
   const creds = opts && opts.key ? opts : undefined;
   if (!aiEnabled(creds)) return;
   (async () => {
-    const f = await File.findById(fileId);
+    const f = await File.findOne({ _id: fileId, userId });
     if (!f) return;
     const fresh = await generateTags(
       f.name,
@@ -324,7 +344,7 @@ export function tagFileInBackground(fileId, opts) {
       creds
     );
     if (fresh.length === 0) return;
-    const latest = await File.findById(fileId);
+    const latest = await File.findOne({ _id: fileId, userId });
     if (!latest) return;
     latest.tags = mergeTags(latest.tags, fresh);
     await latest.save();

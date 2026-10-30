@@ -14,21 +14,28 @@ function publicMeta(u) {
   return { id: u.id, name: u.name, mimeType: u.mimeType, size: u.size };
 }
 
-export function stashUpload({ name, mimeType, size, data }) {
+export function stashUpload({ name, mimeType, size, data, userId }) {
   const id = `up_${Date.now().toString(36)}_${(seq++).toString(36)}${Math.floor(
     Math.random() * 1e6
   ).toString(36)}`;
-  store.set(id, { id, name, mimeType, size, data, createdAt: Date.now() });
+  store.set(id, { id, name, mimeType, size, data, userId, createdAt: Date.now() });
   return publicMeta(store.get(id));
 }
 
-export function peekUpload(id) {
-  return store.get(id) || null;
+function owned(id, userId) {
+  const u = store.get(id);
+  if (!u) return null;
+  if (u.userId && String(u.userId) !== String(userId)) return null;
+  return u;
+}
+
+export function peekUpload(id, userId) {
+  return owned(id, userId);
 }
 
 // Consumes the upload (one-shot): placing it twice is not possible.
-export function takeUpload(id) {
-  const u = store.get(id);
+export function takeUpload(id, userId) {
+  const u = owned(id, userId);
   if (u) store.delete(id);
   return u || null;
 }

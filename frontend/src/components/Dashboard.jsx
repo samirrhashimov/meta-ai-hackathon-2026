@@ -3,8 +3,9 @@ import { api } from "../api";
 import { accentHexes, currentAccent } from "../accent";
 import { loadSettings } from "../settings";
 
-// Center-area dashboard: stat cards, simple charts, AI digest.
-export default function Dashboard() {
+// Analytics section (embedded at the bottom of Visualise; `bare` hides the
+// standalone title when the parent already renders a section heading).
+export default function Dashboard({ bare = false }) {
   const acc = currentAccent();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,14 +36,16 @@ export default function Dashboard() {
   const { stats, digest, digestStale, digestError } = data;
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <h2 className="mb-4 text-lg font-semibold text-neutral-100">Dashboard</h2>
+    <div className={bare ? undefined : "mx-auto max-w-3xl p-6"}>
+      {!bare && <h2 className="mb-4 text-lg font-semibold text-neutral-100">Dashboard</h2>}
 
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
         <StatCard label="Notes" value={stats.totalNotes} />
         <StatCard label="Folders" value={stats.totalFolders} />
         <StatCard label="Unsorted" value={stats.unfiledCount} />
         <StatCard label="Attachments" value={stats.attachmentsTotal} />
+        <StatCard label="Day streak" value={stats.streak ?? 0} />
+        <StatCard label="Words" value={(stats.totalWords ?? 0).toLocaleString()} />
       </div>
 
       <Panel title="Notes per folder">
@@ -53,7 +56,7 @@ export default function Dashboard() {
         )}
       </Panel>
 
-      <Panel title="Activity (last 30 days)">
+      <Panel title="Activity (last 26 weeks)">
         <ActivityChart days={stats.perDay} />
       </Panel>
 
@@ -111,7 +114,7 @@ export default function Dashboard() {
 
 function Panel({ title, action, children }) {
   return (
-    <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="vis-rise mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-medium text-neutral-200">{title}</h3>
         {action}
@@ -154,6 +157,7 @@ function BarList({ items }) {
 }
 
 function ActivityChart({ days }) {
+  const hex = accentHexes(loadSettings().accent).hex;
   const max = Math.max(1, ...days.map((d) => d.count));
   const w = 600;
   const h = 120;
@@ -168,11 +172,21 @@ function ActivityChart({ days }) {
   return (
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full">
-        <polygon
-          points={`${pad},${h - pad} ${points} ${w - pad},${h - pad}`}
-          fill="rgba(34,211,238,0.08)"
-        />
-        <polyline points={points} fill="none" stroke="#22d3ee" strokeWidth="2" />
+        <polygon points={`${pad},${h - pad} ${points} ${w - pad},${h - pad}`} fill={`${hex}14`} />
+        <polyline points={points} fill="none" stroke={hex} strokeWidth="2" />
+        {days.map((d, i) =>
+          d.count === max && max > 0 ? (
+            <circle
+              key={i}
+              cx={pad + (i / (days.length - 1)) * (w - pad * 2)}
+              cy={h - pad - (h - pad * 2)}
+              r="3.5"
+              fill={hex}
+            >
+              <title>{`${d.date}: ${d.count}`}</title>
+            </circle>
+          ) : null
+        )}
       </svg>
       <div className="flex justify-between text-xs text-neutral-600">
         <span>{days[0]?.date}</span>

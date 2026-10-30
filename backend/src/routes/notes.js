@@ -1,15 +1,18 @@
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
+import { requireAuth } from "../services/auth.js";
 import { Note } from "../models/Note.js";
 import { Folder } from "../models/Folder.js";
 import { aiEnabled, aiFromReq, organizeNote, tagNoteInBackground } from "../services/ai.js";
 
 const router = Router();
 
+router.use(requireAuth);
+
 // GET /api/notes — all notes (filterable with ?folderId=... and ?search=...)
 router.get("/", async (req, res, next) => {
   try {
-    const filter = {};
+    const filter = { userId: req.userId };
     if (req.query.folderId !== undefined) {
       if (req.query.folderId === "null" || req.query.folderId === "")
         filter.folderId = null;
@@ -33,17 +36,23 @@ router.post("/", async (req, res, next) => {
     if (!title || !title.trim()) return res.status(400).json({ error: "Note title is required" });
     if (folderId !== null) {
       if (!isValidObjectId(folderId)) return res.status(400).json({ error: "Invalid folderId" });
-      const folder = await Folder.findById(folderId);
+      const folder = await Folder.findOne({ _id: folderId, userId: req.userId });
       if (!folder) return res.status(404).json({ error: "Folder not found" });
     }
-    let note = await Note.create({ title: title.trim(), content, folderId, tags });
+    let note = await Note.create({
+      title: title.trim(),
+      content,
+      folderId,
+      tags,
+      userId: req.userId,
+    });
     const creds = aiFromReq(req);
     // AI tags every note in the background; the save itself stays fast.
-    tagNoteInBackground(note._id, creds);
+    tagNoteInBackground(note._id, creds, req.userId);
     // autoSort: AI picks/creates a matching folder. The note stays as-is on failure.
     if (autoSort && aiEnabled(creds)) {
       try {
-        note = (await organizeNote(note._id, creds)).note;
+        note = (await organizeNote(note._id, creds, req.userId)).note;
       } catch (err) {
         console.error("Auto-sort failed:", err.message);
       }
@@ -58,7 +67,10 @@ router.post("/", async (req, res, next) => {
 router.get("/:id", async (req, res, next) => {
   try {
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
-    const note = await Note.findById(req.params.id).populate("folderId", "name");
+    const note = await Note.findOne({ _id: req.params.id, userId: req.userId }).populate(
+      "folderId",
+      "name"
+    );
     if (!note) return res.status(404).json({ error: "Note not found" });
     res.json(note);
   } catch (err) {
@@ -83,19 +95,20 @@ router.put("/:id", async (req, res, next) => {
       const folderId = req.body.folderId;
       if (folderId !== null) {
         if (!isValidObjectId(folderId)) return res.status(400).json({ error: "Invalid folderId" });
-        const folder = await Folder.findById(folderId);
+        const folder = await Folder.findOne({ _id: folderId, userId: req.userId });
         if (!folder) return res.status(404).json({ error: "Folder not found" });
       }
       updates.folderId = folderId;
     }
-    const note = await Note.findByIdAndUpdate(req.params.id, updates, {
-      new: true,
-      runValidators: true,
-    }).populate("folderId", "name");
+    const note = await Note.findOneAndUpdate(
+      { _id: req.params.id, userId: req.userId },
+      updates,
+      { new: true, runValidators: true }
+    ).populate("folderId", "name");
     if (!note) return res.status(404).json({ error: "Note not found" });
     // Changed text gets fresh AI tags in the background (manual tags are kept).
     if (req.body.title !== undefined || req.body.content !== undefined) {
-      tagNoteInBackground(note._id, aiFromReq(req));
+      tagNoteInBackground(note._id, aiFromReq(req), req.userId);
     }
     res.json(note);
   } catch (err) {
@@ -107,7 +120,7 @@ router.put("/:id", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
-    const note = await Note.findByIdAndDelete(req.params.id);
+    const note = await Note.findOneAndDelete({ _id: req.params.id, userId: req.userId });
     if (!note) return res.status(404).json({ error: "Note not found" });
     res.json({ ok: true });
   } catch (err) {

@@ -1,6 +1,8 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, fileContentUrl } from "./api";
+import { api, fileContentUrl, getToken, setToken } from "./api";
+import Landing from "./components/Landing";
+import Auth from "./components/Auth";
 import { shortcutTitle } from "./shortcuts";
 import Sidebar from "./components/Sidebar";
 import NoteEditor from "./components/NoteEditor";
@@ -11,10 +13,11 @@ import TagsModal from "./components/TagsModal";
 import Modal, { Kbd } from "./components/Modal";
 import AiPanel from "./components/AiPanel";
 import Dashboard from "./components/Dashboard";
+import VisualiseView from "./components/VisualiseView";
 import GraphView from "./components/GraphView";
 import SettingsModal from "./components/SettingsModal";
 import { loadSettings, saveSettings } from "./settings";
-import { LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuLayoutDashboard, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuTrash2, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
+import { LuChartColumn, LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuLogOut, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuTrash2, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
 import { applyAccentVars, currentAccent } from "./accent";
 import logo from "./assets/flama_icon.png";
@@ -41,6 +44,40 @@ function NavButton({ title, active, onClick, children, dim, buttonRef }) {
 }
 
 export default function App() {
+  // Session gate: no user → landing / login / register by hash route.
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [route, setRoute] = useState(() => window.location.hash || "#/");
+  useEffect(() => {
+    const onHash = () => setRoute(window.location.hash || "#/");
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
+    if (!getToken()) {
+      setAuthChecked(true);
+      return;
+    }
+    api
+      .me()
+      .then((res) => setUser(res.user))
+      .catch(() => setToken(""))
+      .finally(() => setAuthChecked(true));
+  }, []);
+  useEffect(() => {
+    const onExpired = () => setUser(null);
+    window.addEventListener("flama:logout", onExpired);
+    return () => window.removeEventListener("flama:logout", onExpired);
+  }, []);
+  function handleAuthed(u) {
+    setUser(u);
+    window.location.hash = "#/";
+  }
+  function handleLogout() {
+    setToken("");
+    setUser(null);
+    window.location.hash = "#/";
+  }
   const [folders, setFolders] = useState([]);
   const [notes, setNotes] = useState([]);
   const [tabs, setTabs] = useState([]); // open tab ids: note ids + `file:<id>`, Chrome-style
@@ -132,10 +169,11 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!user) return;
     refresh()
       .catch((e) => setError("Could not reach the backend (" + e.message + "). Is it running?"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   // Global shortcuts (see shortcuts.js). Matching uses e.code (physical key)
   // so alternative layouts keep working; AltGr (Ctrl+Alt) never matches the
@@ -256,7 +294,7 @@ export default function App() {
   }
 
   // Home goes to notes: the active tab if there is one, otherwise the
-  // Assistant. Never clears the tab position, so Dashboard -> Home resumes
+  // Assistant. Never clears the tab position, so Visualise -> Home resumes
   // where you left off.
   function goHome() {
     if (!activeId && tabs.length > 0) setActiveId(tabs[tabs.length - 1]);
@@ -892,6 +930,24 @@ export default function App() {
     });
   }
 
+  if (!authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-neutral-950 text-sm text-neutral-500">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    if (route.startsWith("#/login"))
+      return <Auth mode="login" onDone={handleAuthed} onBack={() => (window.location.hash = "#/")} />;
+    if (route.startsWith("#/register"))
+      return (
+        <Auth mode="register" onDone={handleAuthed} onBack={() => (window.location.hash = "#/")} />
+      );
+    return <Landing />;
+  }
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-neutral-950 text-sm text-neutral-500">
@@ -926,8 +982,8 @@ export default function App() {
         >
           <LuHouse size={17} />
         </NavButton>
-        <NavButton title={shortcutTitle("Dashboard", "dashboard")} active={view === "dashboard"} onClick={() => setView("dashboard")}>
-          <LuLayoutDashboard size={17} />
+        <NavButton title={shortcutTitle("Visualise", "dashboard")} active={view === "dashboard"} onClick={() => setView("dashboard")}>
+          <LuChartColumn size={17} />
         </NavButton>
         <NavButton title={shortcutTitle("Knowledge graph", "graph")} active={view === "graph"} onClick={() => setView("graph")}>
           <LuWaypoints size={17} />
@@ -1020,6 +1076,9 @@ export default function App() {
             {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}
           </NavButton>
         )}
+        <NavButton title={`Log out (${user.email})`} onClick={handleLogout}>
+          <LuLogOut size={17} />
+        </NavButton>
         <img
           src={logoSrc}
           alt="Lumia Notes"
@@ -1083,7 +1142,7 @@ export default function App() {
       <main className="glass pane-center flex min-w-0 flex-1 flex-col overflow-hidden">
         {view === "dashboard" ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <Dashboard />
+            <VisualiseView onOpenNote={openTab} />
           </div>
         ) : view === "graph" ? (
           <div className="min-h-0 flex-1">

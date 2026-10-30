@@ -1,14 +1,17 @@
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
+import { requireAuth } from "../services/auth.js";
 import { Folder } from "../models/Folder.js";
 import { Note } from "../models/Note.js";
 
 const router = Router();
 
+router.use(requireAuth);
+
 // GET /api/folders — all folders (filterable with ?parentId)
 router.get("/", async (req, res, next) => {
   try {
-    const filter = {};
+    const filter = { userId: req.userId };
     if (req.query.parentId !== undefined) {
       if (req.query.parentId === "null" || req.query.parentId === "") filter.parentId = null;
       else if (isValidObjectId(req.query.parentId)) filter.parentId = req.query.parentId;
@@ -28,10 +31,10 @@ router.post("/", async (req, res, next) => {
     if (!name || !name.trim()) return res.status(400).json({ error: "Folder name is required" });
     if (parentId !== null) {
       if (!isValidObjectId(parentId)) return res.status(400).json({ error: "Invalid parentId" });
-      const parent = await Folder.findById(parentId);
+      const parent = await Folder.findOne({ _id: parentId, userId: req.userId });
       if (!parent) return res.status(404).json({ error: "Parent folder not found" });
     }
-    const folder = await Folder.create({ name: name.trim(), parentId });
+    const folder = await Folder.create({ name: name.trim(), parentId, userId: req.userId });
     res.status(201).json(folder);
   } catch (err) {
     next(err);
@@ -42,7 +45,7 @@ router.post("/", async (req, res, next) => {
 router.get("/:id", async (req, res, next) => {
   try {
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
-    const folder = await Folder.findById(req.params.id);
+    const folder = await Folder.findOne({ _id: req.params.id, userId: req.userId });
     if (!folder) return res.status(404).json({ error: "Folder not found" });
     res.json(folder);
   } catch (err) {
@@ -66,22 +69,25 @@ router.put("/:id", async (req, res, next) => {
         if (!isValidObjectId(parentId)) return res.status(400).json({ error: "Invalid parentId" });
         if (parentId === req.params.id)
           return res.status(400).json({ error: "A folder cannot be moved under itself" });
-        const parent = await Folder.findById(parentId);
+        const parent = await Folder.findOne({ _id: parentId, userId: req.userId });
         if (!parent) return res.status(404).json({ error: "Parent folder not found" });
         // Cycle guard: the new parent must not be a descendant of the moved folder.
         let cur = parent;
         while (cur) {
           if (String(cur._id) === req.params.id)
             return res.status(400).json({ error: "A folder cannot be moved into its own subfolder" });
-          cur = cur.parentId ? await Folder.findById(cur.parentId).select("parentId") : null;
+          cur = cur.parentId
+            ? await Folder.findOne({ _id: cur.parentId, userId: req.userId }).select("parentId")
+            : null;
         }
       }
       updates.parentId = parentId;
     }
-    const folder = await Folder.findByIdAndUpdate(req.params.id, updates, {
-      new: true,
-      runValidators: true,
-    });
+    const folder = await Folder.findOneAndUpdate(
+      { _id: req.params.id, userId: req.userId },
+      updates,
+      { new: true, runValidators: true }
+    );
     if (!folder) return res.status(404).json({ error: "Folder not found" });
     res.json(folder);
   } catch (err) {
@@ -93,10 +99,10 @@ router.put("/:id", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
-    const folder = await Folder.findByIdAndDelete(req.params.id);
+    const folder = await Folder.findOneAndDelete({ _id: req.params.id, userId: req.userId });
     if (!folder) return res.status(404).json({ error: "Folder not found" });
-    await Folder.updateMany({ parentId: folder._id }, { parentId: null });
-    await Note.updateMany({ folderId: folder._id }, { folderId: null });
+    await Folder.updateMany({ parentId: folder._id, userId: req.userId }, { parentId: null });
+    await Note.updateMany({ folderId: folder._id, userId: req.userId }, { folderId: null });
     res.json({ ok: true });
   } catch (err) {
     next(err);

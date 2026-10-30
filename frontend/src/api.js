@@ -3,18 +3,76 @@ import { aiHeaders } from "./settings";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+const TOKEN_KEY = "flama.token";
+
+export function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // storage unavailable: session just won't persist
+  }
+}
+
+function authHeader() {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// Fired when the backend rejects the session; App listens and returns to landing.
+function sessionExpired() {
+  setToken("");
+  window.dispatchEvent(new Event("flama:logout"));
+}
+
 async function request(path, options = {}) {
   const extra = path.startsWith("/api/ai") ? aiHeaders() : {};
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...extra, ...(options.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(),
+      ...extra,
+      ...(options.headers || {}),
+    },
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && getToken()) sessionExpired();
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
 
+// FormData requests skip the JSON content type but still carry the session.
+async function formRequest(path, form) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { ...authHeader(), ...aiHeaders() },
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && getToken()) sessionExpired();
+  if (!res.ok) throw new Error(data.error || "Upload failed");
+  return data;
+}
+
 export const api = {
+  register: (email, password, name) =>
+    request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password, name }),
+    }),
+  login: (email, password) =>
+    request("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  me: () => request("/api/auth/me"),
+
   listFolders: () => request("/api/folders"),
   createFolder: (name, parentId) =>
     request("/api/folders", {
@@ -44,6 +102,7 @@ export const api = {
     request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message, model, attachments }) }),
   chatModels: () => request("/api/ai/models"),
   testKey: () => request("/api/ai/test", { method: "POST" }),
+  visualise: (refresh) => request(`/api/ai/visualise${refresh ? "?refresh=1" : ""}`),
   resetData: () => request("/api/reset", { method: "DELETE" }),
   revert: (messageId) =>
     request("/api/ai/revert", { method: "POST", body: JSON.stringify({ messageId }) }),
@@ -52,13 +111,7 @@ export const api = {
   attachUpload: async (file) => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${API_BASE}/api/ai/attachments`, {
-      method: "POST",
-      headers: aiHeaders(),
-      body: form,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Upload failed");
+    const data = await formRequest("/api/ai/attachments", form);
     return data.attachment;
   },
   chatHistory: () => request("/api/ai/chat"),
@@ -73,14 +126,7 @@ export const api = {
   transcribe: async (wavBlob) => {
     const form = new FormData();
     form.append("audio", wavBlob, "recording.wav");
-    const res = await fetch(`${API_BASE}/api/ai/transcribe`, {
-      method: "POST",
-      headers: aiHeaders(),
-      body: form,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Transcription failed");
-    return data;
+    return formRequest("/api/ai/transcribe", form);
   },
 
   listFiles: () => request("/api/files"),
@@ -97,10 +143,7 @@ export const api = {
       const form = new FormData();
       form.append("file", file);
       if (folderId) form.append("folderId", folderId);
-      const res = await fetch(`${API_BASE}/api/files`, { method: "POST", body: form });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      out.push(data);
+      out.push(await formRequest("/api/files", form));
     }
     return out;
   },
@@ -110,10 +153,7 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     if (noteId) form.append("noteId", noteId);
-    const res = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: form });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Upload failed");
-    return data;
+    return formRequest("/api/upload", form);
   },
 };
 

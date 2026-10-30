@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireAuth } from "../services/auth.js";
 import { ChatCheckpoint } from "../models/ChatCheckpoint.js";
 import { ChatMessage } from "../models/ChatMessage.js";
 import { File } from "../models/File.js";
@@ -8,17 +9,19 @@ import { Note } from "../models/Note.js";
 
 const router = Router();
 
-// DELETE /api/reset — erase everything. Local single-user demo only:
-// there is no auth, so this must go away (or be guarded) with accounts.
+router.use(requireAuth);
+
+// DELETE /api/reset — erase the logged-in account's own data only.
+// Other accounts are never touched.
 router.delete("/", async (req, res, next) => {
   try {
     await Promise.all([
-      Note.deleteMany({}),
-      Folder.deleteMany({}),
-      File.deleteMany({}),
-      ChatMessage.deleteMany({}),
-      ChatCheckpoint.deleteMany({}),
-      Insight.deleteMany({}),
+      Note.deleteMany({ userId: req.userId }),
+      Folder.deleteMany({ userId: req.userId }),
+      File.deleteMany({ userId: req.userId }),
+      ChatMessage.deleteMany({ userId: req.userId }),
+      ChatCheckpoint.deleteMany({ userId: req.userId }),
+      Insight.deleteMany({ userId: req.userId }),
     ]);
     res.json({ ok: true });
   } catch (err) {

@@ -4,6 +4,7 @@ import { Schema, model } from "mongoose";
 // directly in MongoDB. Listed in the folder tree next to notes.
 const fileSchema = new Schema(
   {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     name: { type: String, required: [true, "File name is required"], trim: true },
     folderId: { type: Schema.Types.ObjectId, ref: "Folder", default: null }, // null = unfiled
     mimeType: { type: String, default: "application/octet-stream" },

@@ -800,3 +800,777 @@ html[data-theme="light"] .md-chat-scroll::-webkit-scrollbar-thumb {
 html[data-theme="light"] ::-webkit-scrollbar-thumb {
   background: var(--acc-a25);
 }
+/* ---- Visualise motion & texture ---- */
+/* Staggered entrance: delay per element via inline --vis-d. */
+@keyframes visRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.vis-rise {
+  animation: visRise 0.5s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+  animation-delay: var(--vis-d, 0ms);
+}
+/* Slow zoom on the AI cover while the page is open. */
+@keyframes visKenBurns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+.vis-kenburns {
+  animation: visKenBurns 18s ease-in-out infinite alternate;
+}
+/* Light sweep used while rebuilding and inside skeleton blocks. */
+.vis-shimmer {
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.14) 50%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: visShimmer 1.4s linear infinite;
+  pointer-events: none;
+}
+html[data-theme="light"] .vis-shimmer {
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(9, 9, 11, 0.08) 50%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+}
+@keyframes visShimmer {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
+}
+/* Bars grow in from the left on mount. */
+@keyframes visGrowX {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.vis-bar {
+  transform-origin: left center;
+  animation: visGrowX 0.7s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+}
+/* Diagonal stripes inside progress fills (static texture, no motion). */
+.vis-stripes {
+  background-image: repeating-linear-gradient(
+    -55deg,
+    rgba(255, 255, 255, 0.22) 0 6px,
+    transparent 6px 12px
+  );
+}
+/* Motion-sensitive users get the final state immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .vis-rise,
+  .vis-kenburns,
+  .vis-shimmer,
+  .vis-bar {
+    animation: none;
+  }
+}
+
+/* ---- Landing + auth pages ---- */
+.land-root {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  color: #e4e4e7;
+}
+.land-orb {
+  position: fixed;
+  border-radius: 9999px;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+}
+.land-orb-a {
+  width: 560px;
+  height: 560px;
+  top: -180px;
+  left: -140px;
+  background: var(--acc-a13);
+  animation: landDrift 16s ease-in-out infinite alternate;
+}
+.land-orb-b {
+  width: 620px;
+  height: 620px;
+  bottom: -220px;
+  right: -160px;
+  background: var(--acc-a07);
+  animation: landDrift 20s ease-in-out infinite alternate-reverse;
+}
+@keyframes landDrift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(60px, 40px) scale(1.12);
+  }
+}
+/* Entrance: fades up once, staggered with --land-d. */
+@keyframes landRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.land-rise {
+  animation: landRise 0.6s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+  animation-delay: var(--land-d, 0ms);
+}
+.land-nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.1rem 1.5rem;
+}
+.land-brand img {
+  height: 1.9rem;
+  width: auto;
+  display: block;
+}
+.land-links {
+  display: flex;
+  gap: 1.25rem;
+  margin-left: 1.5rem;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+}
+.land-links a:hover {
+  color: #fafafa;
+}
+.land-nav-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.land-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 0.65rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.land-btn-primary {
+  /* color comes from the accent .solid utility */
+}
+.land-btn-ghost {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e4e4e7;
+}
+.land-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.land-btn-lg {
+  padding: 0.7rem 1.35rem;
+  font-size: 0.95rem;
+  border-radius: 0.8rem;
+}
+.land-hero {
+  position: relative;
+  z-index: 1;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 1rem;
+  text-align: center;
+}
+.land-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--acc-soft-text);
+  border: 1px solid var(--acc-a35);
+  background: var(--acc-a07);
+  border-radius: 9999px;
+  padding: 0.3rem 0.85rem;
+}
+.land-title {
+  margin: 1.1rem auto 0;
+  max-width: 44rem;
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fafafa;
+}
+.land-sub {
+  margin: 1rem auto 0;
+  max-width: 38rem;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: #a1a1aa;
+}
+.land-cta {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.6rem;
+  flex-wrap: wrap;
+}
+/* Animated app preview: three glass panes with typing + growing bars. */
+.land-mock {
+  margin: 2.8rem auto 0;
+  max-width: 60rem;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+.land-mock-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.land-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.land-dot:first-child {
+  background: var(--acc-a45);
+}
+.land-mock-url {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  color: #71717a;
+}
+.land-mock-body {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  gap: 0.9rem;
+  padding: 0.9rem;
+  min-height: 15rem;
+}
+.land-mock-side,
+.land-mock-main,
+.land-mock-chat {
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.land-mock-row,
+.land-mock-h,
+.land-mock-bubble {
+  display: block;
+  height: 0.6rem;
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+.land-mock-row.land-indent {
+  margin-left: 1rem;
+}
+.land-mock-h {
+  height: 1.1rem;
+  width: 55%;
+  background: rgba(255, 255, 255, 0.16);
+}
+.land-type {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 1.2rem;
+  font-size: 0.72rem;
+  color: var(--acc-soft-text);
+}
+.land-type-text {
+  overflow: hidden;
+  white-space: nowrap;
+  animation: landType 5s steps(34) infinite;
+}
+@keyframes landType {
+  0% {
+    width: 0;
+  }
+  55%,
+  85% {
+    width: 100%;
+  }
+  100% {
+    width: 0;
+  }
+}
+.land-caret {
+  width: 2px;
+  height: 0.85rem;
+  background: var(--acc);
+  animation: landBlink 1s steps(1) infinite;
+}
+@keyframes landBlink {
+  50% {
+    opacity: 0;
+  }
+}
+.land-mock-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+.land-mock-bars span {
+  display: block;
+  height: 0.55rem;
+  border-radius: 0.3rem;
+  background: var(--acc-a35);
+  animation: landBarGrow 5s ease-in-out infinite;
+}
+@keyframes landBarGrow {
+  0% {
+    width: 8%;
+  }
+  55%,
+  85% {
+    width: var(--w);
+  }
+  100% {
+    width: 8%;
+  }
+}
+.land-mock-bubble {
+  height: 0.75rem;
+}
+.land-mock-bubble.land-accent {
+  background: var(--acc-a35);
+  align-self: flex-end;
+}
+.land-w50 {
+  width: 50%;
+}
+.land-w60 {
+  width: 60%;
+}
+.land-w70 {
+  width: 70%;
+}
+.land-w75 {
+  width: 75%;
+}
+.land-w80 {
+  width: 80%;
+}
+.land-w90 {
+  width: 90%;
+}
+.land-section {
+  position: relative;
+  z-index: 1;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 4.5rem 1.5rem 0;
+}
+.land-h2 {
+  font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: #fafafa;
+  text-align: center;
+}
+.land-section-sub {
+  margin: 0.7rem auto 0;
+  max-width: 36rem;
+  text-align: center;
+  color: #a1a1aa;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.land-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.9rem;
+  margin-top: 2rem;
+}
+.land-card {
+  border-radius: 1rem;
+  padding: 1.3rem;
+}
+.land-card-icon {
+  display: inline-flex;
+  padding: 0.55rem;
+  border-radius: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+.land-card h3 {
+  font-size: 1rem;
+  font-weight: 650;
+  color: #fafafa;
+  margin-bottom: 0.4rem;
+}
+.land-card p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #a1a1aa;
+}
+/* Showcase rows: copy + illustration slot, alternating sides. */
+.land-showcase {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+  margin-top: 2.8rem;
+}
+.land-showcase.land-flip .land-showcase-text {
+  order: 2;
+}
+.land-kicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.5rem;
+}
+.land-showcase-text h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fafafa;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.6rem;
+}
+.land-showcase-text p {
+  color: #a1a1aa;
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+.land-illus-slot {
+  border: 1.5px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  aspect-ratio: 3 / 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+.land-illus-frame {
+  display: inline-flex;
+  padding: 0.7rem;
+  border-radius: 0.9rem;
+  color: var(--acc-soft-text);
+  background: var(--acc-a07);
+  border: 1px solid var(--acc-a18);
+}
+.land-illus-slot p {
+  font-size: 0.85rem;
+  color: #d4d4d8;
+  font-weight: 600;
+}
+.land-illus-slot small {
+  font-size: 0.75rem;
+  color: #71717a;
+}
+/* Promo video slot: swap for the real <video> or embed. */
+.land-video-slot {
+  margin: 2rem auto 0;
+  max-width: 56rem;
+  aspect-ratio: 16 / 9;
+  border-radius: 1rem;
+  border: 1.5px dashed rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.land-video-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  color: #06202a;
+  background: var(--acc);
+  animation: landPulse 2.4s ease-in-out infinite;
+}
+@keyframes landPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--acc-a35);
+  }
+  50% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+.land-video-slot p {
+  color: #e4e4e7;
+  font-weight: 600;
+}
+.land-video-slot small {
+  color: #71717a;
+  font-size: 0.75rem;
+}
+.land-cta-block {
+  text-align: center;
+  padding-bottom: 5rem;
+}
+.land-cta-block .land-btn {
+  margin-top: 1.6rem;
+}
+.land-footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.8rem;
+  color: #a1a1aa;
+}
+.land-footer-dim {
+  color: #71717a;
+}
+/* Auth card */
+.land-back {
+  position: absolute;
+  z-index: 2;
+  top: 1.2rem;
+  left: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #a1a1aa;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.land-back:hover {
+  color: #fafafa;
+}
+.land-auth-wrap {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.25rem 2rem;
+}
+.land-auth-card {
+  width: 100%;
+  max-width: 26rem;
+  border-radius: 1.1rem;
+  padding: 2rem;
+  text-align: center;
+}
+.land-auth-logo {
+  height: 2.2rem;
+  width: auto;
+  margin: 0 auto 1rem;
+}
+.land-auth-title {
+  font-size: 1.45rem;
+  font-weight: 750;
+  color: #fafafa;
+  letter-spacing: -0.01em;
+}
+.land-auth-sub {
+  margin-top: 0.4rem;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+}
+.land-auth-form {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  text-align: left;
+}
+.land-field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #a1a1aa;
+  margin-bottom: 0.35rem;
+}
+.land-field-box {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.65rem;
+  padding: 0 0.8rem;
+}
+.land-field-box:focus-within {
+  border-color: var(--acc);
+}
+.land-field-icon {
+  color: #71717a;
+  flex-shrink: 0;
+}
+.land-field-box input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: #fafafa;
+  font-size: 0.9rem;
+  padding: 0.7rem 0;
+}
+.land-field-box input::placeholder {
+  color: #52525b;
+}
+.land-auth-error {
+  font-size: 0.82rem;
+  color: #fca5a5;
+}
+.land-auth-form .land-btn {
+  justify-content: center;
+  margin-top: 0.3rem;
+  width: 100%;
+}
+.land-auth-switch {
+  margin-top: 1.2rem;
+  font-size: 0.85rem;
+  color: #a1a1aa;
+}
+.land-auth-switch a {
+  color: var(--acc-soft-text);
+  font-weight: 600;
+}
+/* Light theme: keep the same layout, flip surfaces and ink. */
+html[data-theme="light"] .land-root {
+  color: #27272a;
+}
+html[data-theme="light"] .land-title,
+html[data-theme="light"] .land-h2,
+html[data-theme="light"] .land-card h3,
+html[data-theme="light"] .land-showcase-text h3,
+html[data-theme="light"] .land-auth-title {
+  color: #18181b;
+}
+html[data-theme="light"] .land-illus-slot p {
+  color: #3f3f46;
+}
+html[data-theme="light"] .land-sub,
+html[data-theme="light"] .land-section-sub,
+html[data-theme="light"] .land-card p,
+html[data-theme="light"] .land-showcase-text p,
+html[data-theme="light"] .land-auth-sub,
+html[data-theme="light"] .land-footer,
+html[data-theme="light"] .land-links {
+  color: #52525b;
+}
+html[data-theme="light"] .land-links a:hover,
+html[data-theme="light"] .land-back:hover {
+  color: #18181b;
+}
+html[data-theme="light"] .land-btn-ghost {
+  border-color: rgba(9, 9, 11, 0.12);
+  background: rgba(9, 9, 11, 0.04);
+  color: #27272a;
+}
+html[data-theme="light"] .land-btn-ghost:hover {
+  background: rgba(9, 9, 11, 0.08);
+}
+html[data-theme="light"] .land-mock {
+  border-color: rgba(9, 9, 11, 0.1);
+  box-shadow: 0 24px 70px rgba(9, 9, 11, 0.18);
+}
+html[data-theme="light"] .land-field-box {
+  border-color: rgba(9, 9, 11, 0.14);
+  background: rgba(9, 9, 11, 0.03);
+}
+html[data-theme="light"] .land-field-box input {
+  color: #18181b;
+}
+html[data-theme="light"] .land-illus-slot,
+html[data-theme="light"] .land-video-slot {
+  border-color: rgba(9, 9, 11, 0.2);
+  background: rgba(9, 9, 11, 0.03);
+}
+html[data-theme="light"] .land-video-slot {
+  background: rgba(9, 9, 11, 0.05);
+}
+html[data-theme="light"] .land-video-slot p {
+  color: #3f3f46;
+}
+html[data-theme="light"] .land-footer {
+  border-top-color: rgba(9, 9, 11, 0.1);
+}
+/* Small screens: stack showcase rows, hide secondary nav links. */
+@media (max-width: 720px) {
+  .land-links {
+    display: none;
+  }
+  .land-mock-body {
+    grid-template-columns: 1fr;
+  }
+  .land-mock-chat {
+    display: none;
+  }
+  .land-showcase {
+    grid-template-columns: 1fr;
+    gap: 1.2rem;
+  }
+  .land-showcase.land-flip .land-showcase-text {
+    order: 0;
+  }
+}
+/* Motion-sensitive users get the final state immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .land-orb,
+  .land-rise,
+  .land-type-text,
+  .land-caret,
+  .land-mock-bars span,
+  .land-video-play {
+    animation: none;
+  }
+}

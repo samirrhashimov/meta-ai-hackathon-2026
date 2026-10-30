@@ -3,7 +3,7 @@ import { Folder } from "../models/Folder.js";
 import { Note } from "../models/Note.js";
 import { File } from "../models/File.js";
 import { ChatMessage } from "../models/ChatMessage.js";
-import { aiConfig, tagFileInBackground, tagNoteInBackground } from "./ai.js";
+import { aiConfig, modelError, tagFileInBackground, tagNoteInBackground } from "./ai.js";
 import { opAfter, revertCheckpoint, saveCheckpoint, snapshotBefore } from "./checkpoints.js";
 import { peekUpload, takeUpload } from "./pending.js";
 
@@ -191,21 +191,21 @@ function brief(note) {
 }
 
 // Runs one tool call and returns a JSON-able result.
-async function runTool(name, args, creds) {
+async function runTool(name, args, creds, userId) {
   switch (name) {
     case "listFolders": {
-      const folders = await Folder.find().sort({ createdAt: 1 });
+      const folders = await Folder.find({ userId }).sort({ createdAt: 1 });
       return folders.map((f) => ({ _id: f._id, name: f.name, parentId: f.parentId }));
     }
     case "createFolder": {
       if (!args.name) throw new Error("name is required");
       const parentId = args.parentId || null;
       if (parentId && !isValidObjectId(parentId)) throw new Error("Invalid parentId");
-      const folder = await Folder.create({ name: args.name, parentId });
+      const folder = await Folder.create({ name: args.name, parentId, userId });
       return { _id: folder._id, name: folder.name, parentId: folder.parentId };
     }
     case "listNotes": {
-      const filter = {};
+      const filter = { userId };
       if (args.folderId) {
         if (!isValidObjectId(args.folderId)) throw new Error("Invalid folderId");
         filter.folderId = args.folderId;
@@ -216,7 +216,7 @@ async function runTool(name, args, creds) {
     }
     case "getNote": {
       if (!isValidObjectId(args.noteId)) throw new Error("Invalid noteId");
-      const note = await Note.findById(args.noteId);
+      const note = await Note.findOne({ _id: args.noteId, userId });
       if (!note) throw new Error("Note not found");
       return { ...brief(note), content: note.content, aiSummary: note.aiSummary };
     }
@@ -224,7 +224,12 @@ async function runTool(name, args, creds) {
       if (!args.title) throw new Error("title is required");
       const folderId = args.folderId || null;
       if (folderId && !isValidObjectId(folderId)) throw new Error("Invalid folderId");
-      const note = await Note.create({ title: args.title, content: args.content || "", folderId });
+      const note = await Note.create({
+        title: args.title,
+        content: args.content || "",
+        folderId,
+        userId,
+      });
       return brief(note);
     }
     case "updateNote": {
@@ -232,7 +237,9 @@ async function runTool(name, args, creds) {
       const updates = {};
       if (args.title !== undefined) updates.title = args.title;
       if (args.content !== undefined) updates.content = args.content;
-      const note = await Note.findByIdAndUpdate(args.noteId, updates, { new: true });
+      const note = await Note.findOneAndUpdate({ _id: args.noteId, userId }, updates, {
+        new: true,
+      });
       if (!note) throw new Error("Note not found");
       return brief(note);
     }
@@ -241,20 +248,25 @@ async function runTool(name, args, creds) {
       const folderId = args.folderId || null;
       if (folderId) {
         if (!isValidObjectId(folderId)) throw new Error("Invalid folderId");
-        if (!(await Folder.findById(folderId))) throw new Error("Folder not found");
+        if (!(await Folder.findOne({ _id: folderId, userId }))) throw new Error("Folder not found");
       }
-      const note = await Note.findByIdAndUpdate(args.noteId, { folderId }, { new: true });
+      const note = await Note.findOneAndUpdate({ _id: args.noteId, userId }, { folderId }, {
+        new: true,
+      });
       if (!note) throw new Error("Note not found");
       return brief(note);
     }
     case "deleteNote": {
       if (!isValidObjectId(args.noteId)) throw new Error("Invalid noteId");
-      const note = await Note.findByIdAndDelete(args.noteId);
+      const note = await Note.findOneAndDelete({ _id: args.noteId, userId });
       if (!note) throw new Error("Note not found");
       return { deleted: args.noteId };
     }
     case "listFiles": {
-      const files = await File.find().select("-data").sort({ updatedAt: -1 }).limit(100);
+      const files = await File.find({ userId })
+        .select("-data")
+        .sort({ updatedAt: -1 })
+        .limit(100);
       return files.map((f) => ({
         _id: f._id,
         name: f.name,
@@ -266,7 +278,7 @@ async function runTool(name, args, creds) {
     }
     case "getFile": {
       if (!isValidObjectId(args.fileId)) throw new Error("Invalid fileId");
-      const file = await File.findById(args.fileId);
+      const file = await File.findOne({ _id: args.fileId, userId });
       if (!file) throw new Error("File not found");
       const out = {
         _id: file._id,
@@ -286,14 +298,16 @@ async function runTool(name, args, creds) {
       const folderId = args.folderId || null;
       if (folderId) {
         if (!isValidObjectId(folderId)) throw new Error("Invalid folderId");
-        if (!(await Folder.findById(folderId))) throw new Error("Folder not found");
+        if (!(await Folder.findOne({ _id: folderId, userId }))) throw new Error("Folder not found");
       }
-      const file = await File.findByIdAndUpdate(args.fileId, { folderId }, { new: true });
+      const file = await File.findOneAndUpdate({ _id: args.fileId, userId }, { folderId }, {
+        new: true,
+      });
       if (!file) throw new Error("File not found");
       return { _id: file._id, name: file.name, folderId: file.folderId };
     }
     case "readUpload": {
-      const up = peekUpload(args.attachmentId);
+      const up = peekUpload(args.attachmentId, userId);
       if (!up) throw new Error("Attachment not found or expired");
       const out = { id: up.id, name: up.name, mimeType: up.mimeType, size: up.size };
       const textual =
@@ -302,12 +316,12 @@ async function runTool(name, args, creds) {
       return out;
     }
     case "saveUpload": {
-      const up = takeUpload(args.attachmentId);
+      const up = takeUpload(args.attachmentId, userId);
       if (!up) throw new Error("Attachment not found or expired");
       const folderId = args.folderId || null;
       if (folderId) {
         if (!isValidObjectId(folderId)) throw new Error("Invalid folderId");
-        if (!(await Folder.findById(folderId))) throw new Error("Folder not found");
+        if (!(await Folder.findOne({ _id: folderId, userId }))) throw new Error("Folder not found");
       }
       const name = (args.name || up.name || "upload").trim() || "upload";
       if (up.mimeType === "text/markdown" || /\.md$/i.test(name)) {
@@ -317,8 +331,9 @@ async function runTool(name, args, creds) {
           content: (up.data || Buffer.alloc(0)).toString("utf8"),
           folderId,
           tags: [],
+          userId,
         });
-        tagNoteInBackground(note._id, creds);
+        tagNoteInBackground(note._id, creds, userId);
         return { _id: note._id, kind: "note", name: note.title, folderId };
       }
       const file = await File.create({
@@ -328,8 +343,9 @@ async function runTool(name, args, creds) {
         size: up.size,
         data: up.data,
         tags: [],
+        userId,
       });
-      tagFileInBackground(file._id, creds);
+      tagFileInBackground(file._id, creds, userId);
       return { _id: file._id, kind: "file", name: file.name, folderId };
     }
     default:
@@ -384,7 +400,7 @@ async function chatCompletion(messages, model, creds) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`AI request failed (${res.status}): ${body.slice(0, 200)}`);
+    throw modelError("AI request", res.status, body);
   }
   const data = await res.json();
   return data.choices?.[0]?.message;
@@ -392,13 +408,13 @@ async function chatCompletion(messages, model, creds) {
 
 // One chat turn: saves the user message, runs the tool loop, saves and returns the reply.
 // attachments: [{ kind: "note"|"folder"|"file", id }] referenced with @ or +.
-export async function runChat(userText, model, attachments = [], creds) {
+export async function runChat(userText, model, attachments = [], creds, userId) {
   const attachLines = [];
   for (const a of attachments || []) {
     try {
       if (!a || !a.id) continue;
       if (a.kind === "upload") {
-        const u = peekUpload(a.id);
+        const u = peekUpload(a.id, userId);
         if (u)
           attachLines.push(
             `- [upload] "${u.name}" (${u.mimeType || "file"}, id ${u.id}, ${u.size || 0} bytes)`
@@ -407,13 +423,13 @@ export async function runChat(userText, model, attachments = [], creds) {
       }
       if (!isValidObjectId(a.id)) continue;
       if (a.kind === "note") {
-        const n = await Note.findById(a.id).lean();
+        const n = await Note.findOne({ _id: a.id, userId }).lean();
         if (n) attachLines.push(`- [note] "${n.title}" (id ${n._id}, folder ${n.folderId || "unfiled"})`);
       } else if (a.kind === "folder") {
-        const f = await Folder.findById(a.id).lean();
+        const f = await Folder.findOne({ _id: a.id, userId }).lean();
         if (f) attachLines.push(`- [folder] "${f.name}" (id ${f._id})`);
       } else if (a.kind === "file") {
-        const f = await File.findById(a.id).select("-data").lean();
+        const f = await File.findOne({ _id: a.id, userId }).select("-data").lean();
         if (f)
           attachLines.push(
             `- [file] "${f.name}" (${f.mimeType || "file"}, id ${f._id}, ${f.folderId ? `folder ${f.folderId}` : "unfiled"})`
@@ -427,8 +443,8 @@ export async function runChat(userText, model, attachments = [], creds) {
     attachLines.length > 0
       ? `${userText}\n\nAttachments the user referenced with @:\n${attachLines.join("\n")}`
       : userText;
-  await ChatMessage.create({ role: "user", content: userText });
-  const history = await ChatMessage.find().sort({ createdAt: 1 }).limit(50);
+  await ChatMessage.create({ role: "user", content: userText, userId });
+  const history = await ChatMessage.find({ userId }).sort({ createdAt: 1 }).limit(50);
   const messages = [
     { role: "system", content: CHAT_SYSTEM },
     ...history.map((m) => ({ role: m.role, content: m.content })),
@@ -445,9 +461,9 @@ export async function runChat(userText, model, attachments = [], creds) {
     if (!msg) throw new Error("Empty AI response");
     if (!msg.tool_calls || msg.tool_calls.length === 0) {
       const reply = cleanReply(msg.content || "");
-      const replyDoc = await ChatMessage.create({ role: "assistant", content: reply });
+      const replyDoc = await ChatMessage.create({ role: "assistant", content: reply, userId });
       const checkpoint = pendingOps.length > 0;
-      if (checkpoint) await saveCheckpoint(replyDoc._id, pendingOps);
+      if (checkpoint) await saveCheckpoint(replyDoc._id, pendingOps, userId);
       return { reply, actions, checkpoint, messageId: replyDoc._id };
     }
     messages.push({ role: "assistant", content: msg.content || null, tool_calls: msg.tool_calls });
@@ -455,8 +471,8 @@ export async function runChat(userText, model, attachments = [], creds) {
       let result;
       try {
         const args = JSON.parse(call.function.arguments || "{}");
-        const snap = await snapshotBefore(call.function.name, args);
-        result = await runTool(call.function.name, args, creds);
+        const snap = await snapshotBefore(call.function.name, args, userId);
+        result = await runTool(call.function.name, args, creds, userId);
         const op = opAfter(call.function.name, args, result, snap);
         if (op) pendingOps.push(op);
         actions.push({ tool: call.function.name, args });
@@ -467,8 +483,8 @@ export async function runChat(userText, model, attachments = [], creds) {
     }
   }
   const reply = "I ran several steps but could not finish. Please rephrase your request.";
-  const replyDoc = await ChatMessage.create({ role: "assistant", content: reply });
+  const replyDoc = await ChatMessage.create({ role: "assistant", content: reply, userId });
   const checkpoint = pendingOps.length > 0;
-  if (checkpoint) await saveCheckpoint(replyDoc._id, pendingOps);
+  if (checkpoint) await saveCheckpoint(replyDoc._id, pendingOps, userId);
   return { reply, actions, checkpoint, messageId: replyDoc._id };
 }

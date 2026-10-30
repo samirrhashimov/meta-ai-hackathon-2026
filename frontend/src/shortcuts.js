@@ -10,7 +10,7 @@ export const SHORTCUTS = [
   { id: "assistant", label: "Toggle Assistant panel", display: "Ctrl+J" },
   { id: "search", label: "Search notes", display: "Ctrl+K" },
   { id: "home", label: "Go Home", display: "Alt+1" },
-  { id: "dashboard", label: "Open Dashboard", display: "Alt+2" },
+  { id: "dashboard", label: "Open Visualise", display: "Alt+2" },
   { id: "graph", label: "Open Knowledge graph", display: "Alt+3" },
   { id: "tags", label: "Browse tags", display: "Alt+T" },
   { id: "settings", label: "Open Settings", display: "Ctrl+," },

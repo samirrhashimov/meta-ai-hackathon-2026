@@ -24,19 +24,19 @@ function fieldsFor(kind) {
 }
 
 // Captured BEFORE a mutating tool runs. Best-effort: never breaks the turn.
-export async function snapshotBefore(name, args) {
+export async function snapshotBefore(name, args, userId) {
   try {
     if ((name === "updateNote" || name === "moveNote") && isValidObjectId(args.noteId)) {
-      const note = await Note.findById(args.noteId).lean();
+      const note = await Note.findOne({ _id: args.noteId, userId }).lean();
       if (note) return { kind: "notes", id: note._id, before: pick(note, NOTE_FIELDS) };
     }
     if (name === "deleteNote" && isValidObjectId(args.noteId)) {
-      const note = await Note.findById(args.noteId).lean();
+      const note = await Note.findOne({ _id: args.noteId, userId }).lean();
       if (note)
         return { kind: "notes", id: note._id, before: pick(note, NOTE_FIELDS), deleted: true };
     }
     if (name === "moveFile" && isValidObjectId(args.fileId)) {
-      const file = await File.findById(args.fileId).lean();
+      const file = await File.findOne({ _id: args.fileId, userId }).lean();
       if (file) return { kind: "files", id: file._id, before: pick(file, FILE_FIELDS) };
     }
   } catch {
@@ -57,14 +57,14 @@ export function opAfter(name, args, result, snap) {
   return null;
 }
 
-export async function saveCheckpoint(messageId, ops) {
+export async function saveCheckpoint(messageId, ops, userId) {
   if (!ops.length) return null;
-  return ChatCheckpoint.create({ messageId, ops });
+  return ChatCheckpoint.create({ messageId, ops, userId });
 }
 
 // Restores notes/folders to the checkpoint, newest op first. One-shot.
-export async function revertCheckpoint(messageId) {
-  const cp = await ChatCheckpoint.findOne({ messageId });
+export async function revertCheckpoint(messageId, userId) {
+  const cp = await ChatCheckpoint.findOne({ messageId, userId });
   if (!cp) {
     const err = new Error("No checkpoint for this message");
     err.status = 404;
@@ -77,19 +77,19 @@ export async function revertCheckpoint(messageId) {
     if (!op.before) {
       if (op.kind === "folders") {
         // Mirror the app's folder delete: contents stay, become unfiled.
-        await Note.updateMany({ folderId: op.id }, { folderId: null });
+        await Note.updateMany({ folderId: op.id, userId }, { folderId: null });
       }
-      await Model.deleteOne({ _id: op.id });
+      await Model.deleteOne({ _id: op.id, userId });
     } else if (op.deleted) {
-      const exists = await Model.findById(op.id);
-      if (!exists) await Model.create({ _id: op.id, ...op.before });
+      const exists = await Model.findOne({ _id: op.id, userId });
+      if (!exists) await Model.create({ _id: op.id, userId, ...op.before });
     } else {
-      const doc = await Model.findById(op.id);
+      const doc = await Model.findOne({ _id: op.id, userId });
       if (doc) {
         for (const f of fields) doc[f] = op.before[f];
         await doc.save();
       } else {
-        await Model.create({ _id: op.id, ...op.before });
+        await Model.create({ _id: op.id, userId, ...op.before });
       }
     }
     restored++;

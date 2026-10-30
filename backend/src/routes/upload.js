@@ -4,8 +4,11 @@ import path from "path";
 import fs from "fs";
 import { isValidObjectId } from "mongoose";
 import { Note } from "../models/Note.js";
+import { requireAuth } from "../services/auth.js";
 
 const router = Router();
+
+router.use(requireAuth);
 
 // Uploaded files live under backend/uploads/ and are served
 // publicly at GET /uploads/<file> (see index.js).
@@ -46,8 +49,8 @@ router.post("/", upload.single("file"), async (req, res, next) => {
     const { noteId } = req.body;
     if (noteId) {
       if (!isValidObjectId(noteId)) return res.status(400).json({ error: "Invalid noteId" });
-      const note = await Note.findByIdAndUpdate(
-        noteId,
+      const note = await Note.findOneAndUpdate(
+        { _id: noteId, userId: req.userId },
         { $push: { attachments: info } },
         { new: true }
       ).populate("folderId", "name");

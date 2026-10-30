@@ -5,9 +5,12 @@ import { isValidObjectId } from "mongoose";
 import { File } from "../models/File.js";
 import { Folder } from "../models/Folder.js";
 import { Note } from "../models/Note.js";
+import { requireAuth } from "../services/auth.js";
 import { aiFromReq, tagFileInBackground, tagNoteInBackground } from "../services/ai.js";
 
 const router = Router();
+
+router.use(requireAuth);
 
 // Same accepted types as the note-attachment upload endpoint, plus
 // Excalidraw scenes (JSON text, matched by extension).
@@ -52,14 +55,14 @@ function sanitizeTags(tags) {
   return [...new Set(tags.filter((t) => typeof t === "string").map((t) => t.trim()).filter(Boolean))].slice(0, 10);
 }
 
-async function assertFolder(folderId) {
+async function assertFolder(folderId, userId) {
   if (folderId === null || folderId === undefined || folderId === "") return null;
   if (!isValidObjectId(folderId)) {
     const err = new Error("Invalid folderId");
     err.status = 400;
     throw err;
   }
-  const folder = await Folder.findById(folderId);
+  const folder = await Folder.findOne({ _id: folderId, userId });
   if (!folder) {
     const err = new Error("Folder not found");
     err.status = 404;
@@ -72,7 +75,7 @@ async function assertFolder(folderId) {
 // Markdown never stays a file: earlier .md uploads are unified into notes here.
 router.get("/", async (req, res, next) => {
   try {
-    const filter = {};
+    const filter = { userId: req.userId };
     if (req.query.folderId !== undefined) {
       if (req.query.folderId === "null" || req.query.folderId === "") filter.folderId = null;
       else if (isValidObjectId(req.query.folderId)) filter.folderId = req.query.folderId;
@@ -84,7 +87,7 @@ router.get("/", async (req, res, next) => {
     }).select("_id");
     for (const c of mdCandidates) {
       // Atomic claim: a concurrent list call can only convert each file once.
-      const doc = await File.findOneAndDelete({ _id: c._id });
+      const doc = await File.findOneAndDelete({ _id: c._id, userId: req.userId });
       if (!doc) continue;
       const base = (doc.name || "note").replace(/\.md$/i, "");
       const note = await Note.create({
@@ -92,8 +95,9 @@ router.get("/", async (req, res, next) => {
         content: (doc.data || Buffer.alloc(0)).toString("utf8"),
         folderId: doc.folderId || null,
         tags: doc.tags || [],
+        userId: req.userId,
       });
-      tagNoteInBackground(note._id, aiFromReq(req));
+      tagNoteInBackground(note._id, aiFromReq(req), req.userId);
     }
     const files = await File.find(filter).select("-data").sort({ createdAt: -1 });
     res.json(files);
@@ -108,7 +112,7 @@ router.post("/", upload.single("file"), async (req, res, next) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     let folderId = null;
     try {
-      folderId = await assertFolder(req.body.folderId ?? null);
+      folderId = await assertFolder(req.body.folderId ?? null, req.userId);
     } catch (err) {
       return res.status(err.status || 400).json({ error: err.message });
     }
@@ -122,8 +126,9 @@ router.post("/", upload.single("file"), async (req, res, next) => {
         content: (req.file.buffer || Buffer.alloc(0)).toString("utf8"),
         folderId,
         tags: [],
+        userId: req.userId,
       });
-      tagNoteInBackground(note._id, aiFromReq(req));
+      tagNoteInBackground(note._id, aiFromReq(req), req.userId);
       return res.status(201).json({ note: await note.populate("folderId", "name") });
     }
     const doc = await File.create({
@@ -132,9 +137,10 @@ router.post("/", upload.single("file"), async (req, res, next) => {
       mimeType: req.file.mimetype,
       size: req.file.size,
       data: req.file.buffer,
+      userId: req.userId,
     });
     // AI tags every upload in the background; the upload itself stays fast.
-    tagFileInBackground(doc._id, aiFromReq(req));
+    tagFileInBackground(doc._id, aiFromReq(req), req.userId);
     res.status(201).json({ file: toMeta(doc) });
   } catch (err) {
     next(err);
@@ -145,7 +151,7 @@ router.post("/", upload.single("file"), async (req, res, next) => {
 router.get("/:id/content", async (req, res, next) => {
   try {
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
-    const doc = await File.findById(req.params.id);
+    const doc = await File.findOne({ _id: req.params.id, userId: req.userId });
     if (!doc) return res.status(404).json({ error: "File not found" });
     res.set("Content-Type", doc.mimeType || "application/octet-stream");
     res.set("Content-Length", String(doc.data.length));
@@ -160,7 +166,7 @@ router.get("/:id/content", async (req, res, next) => {
 router.put("/:id", async (req, res, next) => {
   try {
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
-    const doc = await File.findById(req.params.id);
+    const doc = await File.findOne({ _id: req.params.id, userId: req.userId });
     if (!doc) return res.status(404).json({ error: "File not found" });
     if (req.body.name !== undefined) {
       if (!req.body.name || !req.body.name.trim())
@@ -169,7 +175,7 @@ router.put("/:id", async (req, res, next) => {
     }
     if (req.body.folderId !== undefined) {
       try {
-        doc.folderId = await assertFolder(req.body.folderId);
+        doc.folderId = await assertFolder(req.body.folderId, req.userId);
       } catch (err) {
         return res.status(err.status || 400).json({ error: err.message });
       }
@@ -202,7 +208,7 @@ router.put("/:id", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
-    const doc = await File.findByIdAndDelete(req.params.id);
+    const doc = await File.findOneAndDelete({ _id: req.params.id, userId: req.userId });
     if (!doc) return res.status(404).json({ error: "File not found" });
     res.json({ ok: true });
   } catch (err) {
