@@ -2,7 +2,7 @@ import { useState } from "react";
 import { LuCheck, LuLock, LuMail, LuUser } from "react-icons/lu";
 import { api, setToken } from "../api";
 import { currentAccent } from "../accent";
-import logo from "../assets/flama_icon_dark.png";
+import { brandLogo } from "../logo";
 
 // Auth page: split card with a live filing animation and the form.
 // onDone(user) hands the fresh session back to App.
@@ -15,7 +15,8 @@ const PASS_RULES = [
   { label: "Passwords match", test: (v, c) => v !== "" && v === c },
 ];
 
-export default function Auth({ mode = "login", onDone, onBack }) {
+export default function Auth({ mode = "login", onDone, onBack, theme = "dark" }) {
+  const logo = brandLogo(theme);
   const acc = currentAccent();
   const isLogin = mode === "login";
   const [name, setName] = useState("");

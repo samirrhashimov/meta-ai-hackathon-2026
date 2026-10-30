@@ -8,7 +8,7 @@ import {
   LuWaypoints,
 } from "react-icons/lu";
 import { currentAccent } from "../accent";
-import logo from "../assets/flama_icon_dark.png";
+import { brandLogo } from "../logo";
 
 // One typing demo after another: title, tab, tag and toast always match.
 const MOCK_SCENARIOS = [
@@ -25,7 +25,8 @@ const MOCK_SCENARIOS = [
 // three showcase blocks with illustration slots, and a closing CTA.
 // Illustration/video files are dropped in later. Every slot is labeled
 // with the copy it belongs to.
-export default function Landing() {
+export default function Landing({ theme = "dark" }) {
+  const logo = brandLogo(theme);
   // Typewriter for the mock editor: types the scenario title char by char
   // (so the caret always sits exactly at the text end), holds, then jumps
   // to a different random scenario.

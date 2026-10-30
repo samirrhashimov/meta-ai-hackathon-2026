@@ -20,8 +20,7 @@ import { loadSettings, saveSettings } from "./settings";
 import { LuChartColumn, LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuTrash2, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
 import { applyAccentVars, currentAccent } from "./accent";
-import logo from "./assets/flama_icon.png";
-import logoDark from "./assets/flama_icon_dark.png";
+import { brandLogo } from "./logo";
 
 function NavButton({ title, active, onClick, children, dim, buttonRef }) {
   const acc = currentAccent();
@@ -109,8 +108,8 @@ export default function App() {
   }
 
   // Persist settings + expose font/accent/theme to CSS.
-  // The "dark" logo variant belongs to the dark theme.
-  const logoSrc = settings.theme === "light" ? logo : logoDark;
+  // White wordmark on dark, black wordmark on light.
+  const logoSrc = brandLogo(settings.theme);
   useEffect(() => {
     saveSettings(settings);
     applyAccentVars(settings.accent || "cyan");
@@ -940,12 +939,12 @@ export default function App() {
 
   if (!user) {
     if (route.startsWith("#/login"))
-      return <Auth mode="login" onDone={handleAuthed} onBack={() => (window.location.hash = "#/")} />;
+      return <Auth mode="login" onDone={handleAuthed} onBack={() => (window.location.hash = "#/")} theme={settings.theme} />;
     if (route.startsWith("#/register"))
       return (
-        <Auth mode="register" onDone={handleAuthed} onBack={() => (window.location.hash = "#/")} />
+        <Auth mode="register" onDone={handleAuthed} onBack={() => (window.location.hash = "#/")} theme={settings.theme} />
       );
-    return <Landing />;
+    return <Landing theme={settings.theme} />;
   }
 
   if (loading) {
@@ -1078,9 +1077,9 @@ export default function App() {
         )}
         <img
           src={logoSrc}
-          alt="Lumia Notes"
-          title="Lumia Notes"
-          className="ml-3 h-6 w-auto shrink-0 select-none"
+          alt="Flama"
+          title="Flama"
+          className="ml-3 h-5 w-auto shrink-0 select-none"
           draggable={false}
         />
       </header>
