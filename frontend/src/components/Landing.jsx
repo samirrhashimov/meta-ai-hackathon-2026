@@ -13,7 +13,7 @@ import logo from "../assets/flama_icon_dark.png";
 
 // One typing demo after another: title, tab, tag and toast always match.
 const MOCK_SCENARIOS = [
-  { short: "gym log", title: "Gym log — legs day", folder: "Sports", tag: "sports" },
+  { short: "gym log", title: "Gym log, legs day", folder: "Sports", tag: "sports" },
   { short: "thesis", title: "Thesis draft v2", folder: "Thesis", tag: "research" },
   { short: "recipe", title: "Carbonara recipe", folder: "Recipes", tag: "food" },
   { short: "japan trip", title: "Japan trip plan", folder: "Travel", tag: "travel" },
@@ -24,7 +24,7 @@ const MOCK_SCENARIOS = [
 
 // Public landing page: animated hero, feature grid, promo-video slot,
 // three showcase blocks with illustration slots, and a closing CTA.
-// Illustration/video files are dropped in later — every slot is labeled
+// Illustration/video files are dropped in later. Every slot is labeled
 // with the copy it belongs to.
 export default function Landing() {
   // Typewriter for the mock editor: types the scenario title char by char
@@ -40,19 +40,33 @@ export default function Landing() {
         setTyped(full);
         return;
       }
-      const t = setTimeout(() => setTyped(full.slice(0, typed.length + 1)), 85);
+      const t = setTimeout(() => setTyped(full.slice(0, typed.length + 1)), 70);
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => {
       setTyped("");
       setSci((i) => (i + 1 + Math.floor(Math.random() * (MOCK_SCENARIOS.length - 1))) % MOCK_SCENARIOS.length);
-    }, reduced ? 6000 : 2600);
+    }, reduced ? 6000 : 3600);
     return () => clearTimeout(t);
   }, [typed, sci]);
   const scenario = MOCK_SCENARIOS[sci];
   const done = typed.length === scenario.title.length && typed.length > 0;
+  // The sidebar keeps the last filed result while the next note is typing,
+  // so scenario switches never flash an empty panel.
+  const [filedSci, setFiledSci] = useState(null);
+  useEffect(() => {
+    if (done) setFiledSci(sci);
+  }, [done, sci]);
+  const filed = filedSci === null ? null : MOCK_SCENARIOS[filedSci];
   // The inactive tab previews the next scenario, like a real tab strip.
   const nextScenario = MOCK_SCENARIOS[(sci + 1) % MOCK_SCENARIOS.length];
+  // Static folders never duplicate the scenario target: the AI either files
+  // into an existing folder or creates a fresh one right here.
+  const otherFolders = [];
+  for (let k = 1; k < MOCK_SCENARIOS.length && otherFolders.length < 2; k++) {
+    const f = MOCK_SCENARIOS[(sci + k) % MOCK_SCENARIOS.length].folder;
+    if (f !== scenario.folder && !otherFolders.includes(f)) otherFolders.push(f);
+  }
   const acc = currentAccent();
   return (
     <div className="land-root">
@@ -83,11 +97,12 @@ export default function Landing() {
         {/* Hero */}
         <section className="land-hero">
           <h1 className="land-title land-rise" style={{ "--land-d": "120ms" }}>
-            Notes that <span className={acc.text}>file themselves</span>
+            Notes and files that <span className={acc.text}>file themselves</span>
           </h1>
           <p className="land-sub land-rise" style={{ "--land-d": "200ms" }}>
-            Flama is a personal notebook where you just write. The AI files
-            every note into the right folder, chats with your library, and
+            Flama is a personal notebook for everything you keep. Write
+            notes, drop in PDFs, images and files. The AI files every note
+            and file into the right folder, chats with your library, and
             turns it all into a living visual dashboard.
           </p>
           <div className="land-cta land-rise" style={{ "--land-d": "280ms" }}>
@@ -101,8 +116,7 @@ export default function Landing() {
             </a>
           </div>
 
-          {/* Animated mini-Flama: navbar tabs, Files tree, note editor,
-              Assistant chat — plus the filing toast looping over it. */}
+          {/* Animated mini-Flama: navbar tabs, Files tree and note editor. */}
           <div className="land-mock land-rise" style={{ "--land-d": "360ms" }} aria-hidden="true">
             <div className="land-mock-bar">
               <span className="land-dot" />
@@ -118,21 +132,25 @@ export default function Landing() {
             <div className="land-mock-body">
               <div className="land-mock-side">
                 <span className="land-mock-pane">Files</span>
-                <span className="land-mock-folder">
-                  <span className="land-w60" />
-                </span>
-                <span className="land-mock-note land-indent land-ai">
-                  <span className="land-w80" />
-                </span>
-                <span className="land-mock-folder">
-                  <span className="land-w50" />
-                </span>
-                <span className="land-mock-note land-indent">
-                  <span className="land-w75" />
-                </span>
-                <span className="land-mock-note land-indent">
-                  <span className="land-w60" />
-                </span>
+                {filed && (
+                  <>
+                    <span
+                      key={filedSci}
+                      className="land-mock-folder land-target land-created"
+                    >
+                      <span>{filed.folder}</span>
+                    </span>
+                    <span className="land-mock-note land-filed" key={`n-${filedSci}`}>
+                      <span>{filed.short}</span>
+                    </span>
+                  </>
+                )}
+
+                {otherFolders.map((f, i) => (
+                  <span className="land-mock-folder land-dim" key={f} title={f}>
+                    <span className={i % 2 ? "land-w50" : "land-w70"} />
+                  </span>
+                ))}
               </div>
               <div className="land-mock-main">
                 <span className="land-mock-pane">Note</span>
@@ -148,27 +166,13 @@ export default function Landing() {
                 <span className="land-mock-row land-w80" />
                 <span className="land-mock-tag">#{scenario.tag}</span>
               </div>
-              <div className="land-mock-chat">
-                <span className="land-mock-pane">Assistant</span>
-                <span className="land-mock-line">
-                  <span className="land-mock-avatar" />
-                  <span className="land-mock-bubble land-w90" />
-                </span>
-                <span className="land-mock-line land-right">
-                  <span className="land-mock-bubble land-accent land-w70" />
-                </span>
-                <span className="land-mock-line">
-                  <span className="land-mock-avatar" />
-                  <span className="land-mock-bubble land-w80" />
-                </span>
-                <span className="land-mock-input">
-                  <span />
-                </span>
-              </div>
             </div>
             {done && (
-              <div className="land-mock-toast" key={sci}>
-                Filed into {scenario.folder}
+              <div className="land-mock-toast" key={`t-${sci}`}>
+                <div className="land-mock-toast-pill">
+                  <span className="land-mock-toast-dot" />
+                  Filed into {scenario.folder}
+                </div>
               </div>
             )}
           </div>
@@ -176,31 +180,30 @@ export default function Landing() {
 
         {/* Feature grid */}
         <section id="features" className="land-section">
-          <h2 className="land-h2">Everything a notebook should do</h2>
+          <h2 className="land-h2">It files. You think.</h2>
           <p className="land-section-sub">
-            Folders, markdown, drawings, attachments — plus an assistant that
-            actually touches your notes.
+            Four reasons Flama beats a plain folder of notes.
           </p>
           <div className="land-grid">
             <Feature
               icon={<LuFolderCheck size={19} />}
-              title="Auto-filing folders"
-              text="Save a note and it lands in the right folder. A matching one opens by itself — Sports, Recipes, Thesis, anything."
+              title="Zero filing"
+              text="Save and done. Notes and files land where they belong."
             />
             <Feature
               icon={<LuMessagesSquare size={19} />}
-              title="Assistant that acts"
-              text="Chat in plain words: find, move, tag, or reorganize. It reads attachments and undoes its own steps."
+              title="Ask anything"
+              text="Find, move, tag, undo. Just say it."
             />
             <Feature
               icon={<LuChartColumn size={19} />}
-              title="Visualise dashboard"
-              text="Your notes become charts, goals, timelines and a momentum score — rebuilt by AI, with generated cover art."
+              title="See your mind"
+              text="Streaks, goals and heatmaps from your own words."
             />
             <Feature
               icon={<LuWaypoints size={19} />}
-              title="Knowledge graph"
-              text="Wikilinks, shared tags and AI-suggested connections, drawn as an explorable map of your thinking."
+              title="Connected dots"
+              text="Wikilinks and AI links draw your big picture."
             />
           </div>
         </section>
@@ -210,28 +213,28 @@ export default function Landing() {
           <h2 className="land-h2">See it in action</h2>
           <p className="land-section-sub">
             Real screens, illustrated step by step. (Artwork slots waiting
-            below — drop the finals in and they appear here.)
+            below. Drop the finals in and they appear here.)
           </p>
           <Showcase
             flip={false}
-            kicker="Auto-filing"
+            kicker="Automatic filing"
             title="Write first, organize never"
-            text="Type a gym log, a recipe, a meeting note. The moment you save, Flama reads it, picks or creates the right folder, and adds tags — with an Undo toast in case it guessed wrong."
-            slotLabel="Illustration 1 — a note flying into a folder (1200 × 800)"
+            text="Type a gym log, a recipe, a meeting note, or drop in a PDF or an image. The moment you save, Flama reads it, picks or creates the right folder, and adds tags, with an Undo toast in case it guessed wrong."
+            slotLabel="Illustration 1: a note flying into a folder (1200x800)"
           />
           <Showcase
             flip
             kicker="Assistant"
             title="Talk to your library"
             text="“Move my gym note into Sports and summarize my week.” The chat understands folders, mentions notes with @, takes dropped files, and every destructive step is reversible."
-            slotLabel="Illustration 2 — chat bubbles acting on notes (1200 × 800)"
+            slotLabel="Illustration 2: chat bubbles acting on notes (1200x800)"
           />
           <Showcase
             flip={false}
             kicker="Visualise"
             title="A dashboard of your mind"
-            text="Streaks, heatmaps, goals, timelines — generated from what you actually wrote, with AI cover art on top. Rebuild it any time your notes change."
-            slotLabel="Illustration 3 — dashboard with charts (1200 × 800)"
+            text="Streaks, heatmaps, goals, timelines, generated from what you actually wrote, with AI cover art on top. Rebuild it any time your notes change."
+            slotLabel="Illustration 3: dashboard with charts (1200x800)"
           />
         </section>
 
@@ -239,7 +242,7 @@ export default function Landing() {
         <section id="video" className="land-section">
           <h2 className="land-h2">Watch the tour</h2>
           <p className="land-section-sub">
-            Ninety seconds from first note to visual dashboard.
+            Ninety seconds from first note or file to visual dashboard.
           </p>
           {/* VIDEO SLOT: replace this div with the <video> or embed element.
               Recommended: 16:9, 1080p, muted autoplay loop. */}
@@ -256,7 +259,7 @@ export default function Landing() {
         <section className="land-section land-cta-block">
           <h2 className="land-h2">Your second brain, minus the filing cabinet</h2>
           <p className="land-section-sub">
-            Free for the hackathon. Bring your notes — Flama brings the order.
+            Free for the hackathon. Bring your notes and files. Flama brings the order.
           </p>
           <a href="#/register" className={`land-btn land-btn-primary land-btn-lg ${acc.solid}`}>
             Create your account
@@ -266,9 +269,10 @@ export default function Landing() {
       </main>
 
       <footer className="land-footer">
-        <span>Flama — AI-native notes</span>
-        <span className="land-footer-dim">Hackathon build · your notes stay yours</span>
+        <span>Flama, your AI notebook</span>
+        <span className="land-footer-dim">Hackathon build · your notes and files stay yours</span>
       </footer>
+
     </div>
   );
 }

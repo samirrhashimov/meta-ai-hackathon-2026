@@ -1044,12 +1044,11 @@ html[data-theme="light"] .vis-shimmer {
   margin-top: 1.6rem;
   flex-wrap: wrap;
 }
-/* Animated mini-Flama: navbar tabs, Files tree, note editor,
-   Assistant chat, and the filing toast looping over it. */
+/* Animated mini-Flama: navbar tabs, Files tree and note editor. */
 .land-mock {
   position: relative;
   margin: 2.8rem auto 0;
-  max-width: 60rem;
+  max-width: 54rem;
   border-radius: 1rem;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1101,17 +1100,27 @@ html[data-theme="light"] .vis-shimmer {
 .land-mock-tab.land-on {
   color: var(--acc-soft-text);
   background: var(--acc-a13);
+  animation: landTabIn 0.35s ease-out;
+}
+@keyframes landTabIn {
+  from {
+    opacity: 0.3;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .land-mock-body {
   display: grid;
-  grid-template-columns: 1fr 1.4fr 1fr;
+  grid-template-columns: 1fr 1.55fr;
   gap: 0.9rem;
   padding: 0.9rem;
-  min-height: 16rem;
+  min-height: 20rem;
 }
 .land-mock-side,
-.land-mock-main,
-.land-mock-chat {
+.land-mock-main {
   position: relative;
   border-radius: 0.65rem;
   background: rgba(255, 255, 255, 0.03);
@@ -1129,21 +1138,19 @@ html[data-theme="light"] .vis-shimmer {
   color: #52525b;
   margin-bottom: 0.1rem;
 }
-.land-mock-row,
-.land-mock-bubble {
+.land-mock-row {
   display: block;
   height: 0.6rem;
   border-radius: 0.3rem;
   background: rgba(255, 255, 255, 0.1);
 }
-.land-mock-row.land-indent {
-  margin-left: 1rem;
-}
-/* Folder row: accent folder glyph + name bar. */
+/* Folder row: accent folder glyph + name. */
 .land-mock-folder {
   display: flex;
   align-items: center;
   gap: 0.45rem;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.4rem;
 }
 .land-mock-folder::before {
   content: "";
@@ -1153,20 +1160,122 @@ html[data-theme="light"] .vis-shimmer {
   border-radius: 0.15rem;
   background: var(--acc-a45);
 }
-.land-mock-folder > span,
-.land-mock-note > span {
+.land-mock-folder > span {
+  font-size: 0.68rem;
+  color: #a1a1aa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.land-mock-folder.land-target > span {
+  color: #e4e4e7;
+  font-weight: 600;
+}
+/* Other folders stay generic placeholder bars (only the target is real). */
+.land-mock-folder.land-dim > span {
   display: block;
   height: 0.55rem;
   border-radius: 0.3rem;
   background: rgba(255, 255, 255, 0.12);
+  font-size: 0;
 }
+/* Fresh folder: springy pop, as if just created. */
+.land-mock-folder.land-created {
+  animation: landFolderIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes landFolderIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* Filing toast: bottom-center inside the mock, pops after the note lands. */
+.land-mock-toast {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1rem;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  pointer-events: none;
+}
+/* The pill itself: true glassmorphism — translucent, blurred, bright
+   edge with an inner top highlight and a soft accent aura. */
+.land-mock-toast-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  padding: 0.5rem 1.1rem 0.5rem 0.55rem;
+  white-space: nowrap;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 0 28px var(--acc-a13);
+  animation: landToastIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 1.15s both;
+}
+html[data-theme="light"] .land-mock-toast-pill {
+  color: #18181b;
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(9, 9, 11, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 12px 32px rgba(9, 9, 11, 0.18),
+    0 0 28px var(--acc-a13);
+}
+.land-mock-toast-dot {
+  position: relative;
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 9999px;
+  background: var(--acc);
+}
+.land-mock-toast-dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.26rem;
+  height: 0.48rem;
+  border: solid #06202a;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -58%) rotate(45deg);
+}
+@keyframes landToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.land-mock-folder.land-dim {
+  opacity: 0.55;
+}
+/* Note row: appears after typing, then slides under the fresh folder. */
 .land-mock-note {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  margin-left: 1rem;
   border-radius: 0.35rem;
   padding: 0.25rem 0.4rem;
+  border: 1px solid transparent;
 }
 .land-mock-note::before {
   content: "";
@@ -1176,10 +1285,43 @@ html[data-theme="light"] .vis-shimmer {
   border-radius: 0.1rem;
   background: rgba(255, 255, 255, 0.16);
 }
-/* The note being filed glows in accent. */
-.land-mock-note.land-ai {
+.land-mock-note > span {
+  font-size: 0.68rem;
+  color: #a1a1aa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Filed: fades in at root after the folder, then slides under it. */
+.land-mock-note.land-filed {
+  margin-left: 1rem;
   background: var(--acc-a07);
-  border: 1px solid var(--acc-a18);
+  border-color: var(--acc-a35);
+  animation: landFileIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both;
+}
+.land-mock-note.land-filed > span {
+  color: var(--acc-soft-text);
+  font-weight: 600;
+}
+@keyframes landFileIn {
+  0% {
+    margin-left: 0;
+    opacity: 0;
+    box-shadow: 0 0 0 0 transparent;
+  }
+  18% {
+    margin-left: 0;
+    opacity: 1;
+  }
+  55% {
+    margin-left: 1rem;
+    box-shadow: 0 0 0 5px var(--acc-a25);
+  }
+  100% {
+    margin-left: 1rem;
+    box-shadow: 0 0 0 0 transparent;
+    opacity: 1;
+  }
 }
 .land-type {
   display: flex;
@@ -1235,86 +1377,7 @@ html[data-theme="light"] .vis-shimmer {
   border-radius: 9999px;
   padding: 0.15rem 0.6rem;
 }
-/* Assistant chat lines with avatar dots. */
-.land-mock-line {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.land-mock-line.land-right {
-  justify-content: flex-end;
-}
-.land-mock-avatar {
-  flex-shrink: 0;
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: 9999px;
-  background: var(--acc-a35);
-}
-.land-mock-bubble {
-  height: 0.75rem;
-  flex: 1;
-  min-width: 0;
-}
-.land-mock-line.land-right .land-mock-bubble {
-  flex: none;
-}
-/* Rounded chat input with a send dot. */
-.land-mock-input {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  height: 1.7rem;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 0 0.25rem 0 0.7rem;
-}
-.land-mock-input::before {
-  content: "";
-  flex: 1;
-  height: 0.5rem;
-  border-radius: 0.3rem;
-  background: rgba(255, 255, 255, 0.08);
-}
-.land-mock-input span {
-  width: 1.2rem;
-  height: 1.2rem;
-  border-radius: 9999px;
-  background: var(--acc);
-}
-/* Filing toast: pops in once typing finishes (JS remounts it per scenario). */
-.land-mock-toast {
-  position: absolute;
-  left: 50%;
-  bottom: 1rem;
-  transform: translateX(-50%);
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--acc-soft-text);
-  background: rgba(10, 12, 16, 0.85);
-  border: 1px solid var(--acc-a35);
-  border-radius: 9999px;
-  padding: 0.35rem 0.9rem;
-  white-space: nowrap;
-  backdrop-filter: blur(8px);
-  animation: landToastIn 0.35s cubic-bezier(0.21, 1.02, 0.55, 1) both;
-  pointer-events: none;
-}
-@keyframes landToastIn {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 8px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
-}
-.land-mock-bubble.land-accent {
-  background: var(--acc-a35);
-  align-self: flex-end;
-}
+/* (Filing is shown in the Files pane now — no toast needed.) */
 .land-w50 {
   width: 50%;
 }
@@ -1664,8 +1727,12 @@ html[data-theme="light"] .land-mock-pane {
 html[data-theme="light"] .land-type {
   color: #18181b;
 }
-html[data-theme="light"] .land-mock-toast {
-  background: rgba(255, 255, 255, 0.9);
+html[data-theme="light"] .land-mock-folder > span,
+html[data-theme="light"] .land-mock-note > span {
+  color: #52525b;
+}
+html[data-theme="light"] .land-mock-folder.land-target > span {
+  color: #18181b;
 }
 html[data-theme="light"] .land-field-box {
   border-color: rgba(9, 9, 11, 0.14);
@@ -1695,9 +1762,7 @@ html[data-theme="light"] .land-footer {
   }
   .land-mock-body {
     grid-template-columns: 1fr;
-  }
-  .land-mock-chat {
-    display: none;
+    min-height: 0;
   }
   .land-showcase {
     grid-template-columns: 1fr;
@@ -1712,6 +1777,9 @@ html[data-theme="light"] .land-footer {
   .land-orb,
   .land-rise,
   .land-caret,
+  .land-mock-note.land-filed,
+  .land-mock-folder.land-created,
+  .land-mock-tab.land-on,
   .land-mock-toast,
   .land-video-play {
     animation: none;

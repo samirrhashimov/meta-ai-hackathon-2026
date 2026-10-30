@@ -49,8 +49,8 @@ export default function Auth({ mode = "login", onDone, onBack }) {
           </h1>
           <p className="land-auth-sub">
             {isLogin
-              ? "Log in to open your notes."
-              : "One account, every note in its place."}
+              ? "Log in to open your notes and files."
+              : "One account, every note and file in its place."}
           </p>
           <form onSubmit={submit} className="land-auth-form">
             {!isLogin && (
