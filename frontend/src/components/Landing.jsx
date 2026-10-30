@@ -5,7 +5,6 @@ import {
   LuFolderCheck,
   LuMessagesSquare,
   LuPlay,
-  LuSparkles,
   LuWaypoints,
 } from "react-icons/lu";
 import { currentAccent } from "../accent";
@@ -100,10 +99,10 @@ export default function Landing() {
             Notes and files that <span className={acc.text}>file themselves</span>
           </h1>
           <p className="land-sub land-rise" style={{ "--land-d": "200ms" }}>
-            Flama is a personal notebook for everything you keep. Write
-            notes, drop in PDFs, images and files. The AI files every note
-            and file into the right folder, chats with your library, and
-            turns it all into a living visual dashboard.
+            Flama is your notebook for everything you keep. Write a note or
+            drop in a PDF, an image or any file. Each one lands in the right
+            folder on its own. Chat with your library, then watch it become a
+            living picture of your mind.
           </p>
           <div className="land-cta land-rise" style={{ "--land-d": "280ms" }}>
             <a href="#/register" className={`land-btn land-btn-primary land-btn-lg ${acc.solid}`}>
@@ -188,69 +187,65 @@ export default function Landing() {
             <Feature
               icon={<LuFolderCheck size={19} />}
               title="Zero filing"
-              text="Save and done. Notes and files land where they belong."
+              text="Hit save. Forget folders. Done."
             />
             <Feature
               icon={<LuMessagesSquare size={19} />}
               title="Ask anything"
-              text="Find, move, tag, undo. Just say it."
+              text="Find it. Move it. Tag it. Just say it."
             />
             <Feature
               icon={<LuChartColumn size={19} />}
               title="See your mind"
-              text="Streaks, goals and heatmaps from your own words."
+              text="Streaks, goals and heatmaps grown from your words."
             />
             <Feature
               icon={<LuWaypoints size={19} />}
               title="Connected dots"
-              text="Wikilinks and AI links draw your big picture."
+              text="Every note you write joins the bigger picture."
             />
           </div>
         </section>
 
-        {/* Showcase with illustration slots */}
+        {/* Showcase with Undraw illustrations (frontend/public/1.svg, 2.svg, 3.svg). */}
         <section id="showcase" className="land-section">
-          <h2 className="land-h2">See it in action</h2>
+          <h2 className="land-h2">A notebook that thinks ahead.</h2>
           <p className="land-section-sub">
-            Real screens, illustrated step by step. (Artwork slots waiting
-            below. Drop the finals in and they appear here.)
+            You write. Flama files, links and visualizes.
           </p>
           <Showcase
             flip={false}
             kicker="Automatic filing"
             title="Write first, organize never"
-            text="Type a gym log, a recipe, a meeting note, or drop in a PDF or an image. The moment you save, Flama reads it, picks or creates the right folder, and adds tags, with an Undo toast in case it guessed wrong."
-            slotLabel="Illustration 1: a note flying into a folder (1200x800)"
+            text="Type a gym log, a recipe or a meeting note. Drop in a PDF or an image instead. The second you save, Flama reads it, finds the right folder or builds a new one, and tags it for you. Guessed wrong? One tap undoes it."
+            visual={<FilingDemo />}
           />
           <Showcase
             flip
             kicker="Assistant"
             title="Talk to your library"
-            text="“Move my gym note into Sports and summarize my week.” The chat understands folders, mentions notes with @, takes dropped files, and every destructive step is reversible."
-            slotLabel="Illustration 2: chat bubbles acting on notes (1200x800)"
+            text="Ask in your own words. Move my gym note into Sports, then sum up my week. The assistant knows your folders, tags any note with @, reads the files you drop in, and can undo anything it does."
+            visual={<ChatDemo />}
           />
           <Showcase
             flip={false}
             kicker="Visualise"
             title="A dashboard of your mind"
-            text="Streaks, heatmaps, goals, timelines, generated from what you actually wrote, with AI cover art on top. Rebuild it any time your notes change."
-            slotLabel="Illustration 3: dashboard with charts (1200x800)"
+            text="Streaks, heatmaps, goals and timelines, all built from what you truly wrote, under art the AI paints for you. Your notes change. Your dashboard follows. One click rebuilds it all."
+            visual={<DashDemo />}
           />
         </section>
 
         {/* Promo video slot */}
         <section id="video" className="land-section">
-          <h2 className="land-h2">Watch the tour</h2>
-          <p className="land-section-sub">
-            Ninety seconds from first note or file to visual dashboard.
-          </p>
+          <h2 className="land-h2">See what Flama does</h2>
           {/* VIDEO SLOT: replace this div with the <video> or embed element.
               Recommended: 16:9, 1080p, muted autoplay loop. */}
           <div className="land-video-slot" role="img" aria-label="Promo video placeholder">
             <span className="land-video-play">
               <LuPlay size={26} />
             </span>
-            <p>Promo video goes here</p>
+            <p>Drop the promo video here</p>
             <small>16:9 · replace this block with the final cut</small>
           </div>
         </section>
@@ -288,9 +283,9 @@ function Feature({ icon, title, text }) {
   );
 }
 
-// Text + illustration placeholder, alternating sides.
-// ILLUSTRATION SLOT: swap IllustrationSlot for the final <img>.
-function Showcase({ flip, kicker, title, text, slotLabel }) {
+// Text + live demo, alternating sides. Each demo below actually runs:
+// filing, chatting and dashboard numbers, all looping with pure CSS.
+function Showcase({ flip, kicker, title, text, visual }) {
   const acc = currentAccent();
   return (
     <div className={`land-showcase${flip ? " land-flip" : ""}`}>
@@ -299,19 +294,72 @@ function Showcase({ flip, kicker, title, text, slotLabel }) {
         <h3>{title}</h3>
         <p>{text}</p>
       </div>
-      <IllustrationSlot label={slotLabel} />
+      {visual}
     </div>
   );
 }
 
-function IllustrationSlot({ label }) {
+// A note flies sideways into its folder, on loop.
+function FilingDemo() {
   return (
-    <div className="land-illus-slot" role="img" aria-label={label}>
-      <span className="land-illus-frame">
-        <LuSparkles size={20} />
+    <div className="land-demo land-filefly" aria-hidden="true">
+      <span className="land-demo-label">Inbox</span>
+      <div className="land-filefly-row">
+        <span className="land-filefly-stack">
+          <i />
+          <i />
+          <i />
+        </span>
+        <span className="land-filefly-folder">
+          Sports
+          <span className="land-filefly-check" />
+        </span>
+      </div>
+      <span className="land-filefly-note">gym log</span>
+    </div>
+  );
+}
+
+// A chat turn plays itself: ask, typing, done.
+function ChatDemo() {
+  return (
+    <div className="land-demo land-chatdem" aria-hidden="true">
+      <span className="land-chat-u">Move my gym note into Sports</span>
+      <span className="land-chat-typing">
+        <i />
+        <i />
+        <i />
       </span>
-      <p>{label}</p>
-      <small>Drop the final artwork here</small>
+      <span className="land-chat-a">Done. Filed into Sports</span>
+    </div>
+  );
+}
+
+// A sparkline draws itself, stats below, on loop.
+function DashDemo() {
+  return (
+    <div className="land-demo land-sparkdem" aria-hidden="true">
+      <span className="land-demo-label">Visualise</span>
+      <svg className="land-spark-svg" viewBox="0 0 200 84">
+        <polygon
+          points="5,70 35,58 65,62 95,38 125,44 155,22 185,28 185,84 5,84"
+          className="land-spark-area"
+        />
+        <path
+          d="M5,70 L35,58 L65,62 L95,38 L125,44 L155,22 L185,28"
+          pathLength="100"
+          className="land-spark-line"
+        />
+        <circle cx="185" cy="28" r="4.5" className="land-spark-dot" />
+      </svg>
+      <div className="land-spark-stats">
+        <span>
+          <b>12</b> day streak
+        </span>
+        <span>
+          <b>48k</b> words
+        </span>
+      </div>
     </div>
   );
 }

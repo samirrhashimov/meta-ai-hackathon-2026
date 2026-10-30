@@ -29,6 +29,16 @@ function publicUser(user) {
   return { id: String(user._id), email: user.email, name: user.name || "" };
 }
 
+// Password policy shared by register: 8+ chars with mixed classes.
+// Returns "" when the password passes, otherwise the first failure message.
+export function validatePassword(password) {
+  const value = String(password || "");
+  if (value.length < 8) return "Password must be at least 8 characters";
+  if (!/[A-Z]/.test(value)) return "Password needs one uppercase letter";
+  if (!/[0-9]/.test(value)) return "Password needs one number";
+  return "";
+}
+
 // Creates an account + returns it with a token. Throws 409 on duplicate email.
 export async function registerUser(email, password, name = "") {
   const clean = String(email || "").trim().toLowerCase();
@@ -37,8 +47,9 @@ export async function registerUser(email, password, name = "") {
     err.status = 400;
     throw err;
   }
-  if (!password || String(password).length < 6) {
-    const err = new Error("Password must be at least 6 characters");
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    const err = new Error(passwordError);
     err.status = 400;
     throw err;
   }
