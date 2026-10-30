@@ -1,6 +1,12 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
+import { Note } from "../models/Note.js";
+import { Folder } from "../models/Folder.js";
+import { File } from "../models/File.js";
+import { ChatMessage } from "../models/ChatMessage.js";
+import { ChatCheckpoint } from "../models/ChatCheckpoint.js";
+import { Insight } from "../models/Insight.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "";
 if (!JWT_SECRET) {
@@ -77,6 +83,38 @@ export async function loginUser(email, password) {
     throw err;
   }
   return { user: publicUser(user), token: signToken(user) };
+}
+
+// Re-checks the account password before a destructive action.
+// Throws 401 when the password is wrong.
+export async function verifyPassword(userId, password) {
+  const user = await User.findById(userId);
+  if (!user || !(await checkPassword(String(password || ""), user.passwordHash))) {
+    const err = new Error("Wrong password");
+    err.status = 401;
+    throw err;
+  }
+  return user;
+}
+
+// Erases one account's data across every collection, without touching others.
+export async function eraseUserData(userId) {
+  await Promise.all([
+    Note.deleteMany({ userId }),
+    Folder.deleteMany({ userId }),
+    File.deleteMany({ userId }),
+    ChatMessage.deleteMany({ userId }),
+    ChatCheckpoint.deleteMany({ userId }),
+    Insight.deleteMany({ userId }),
+  ]);
+}
+
+// Deletes the account itself after wiping its data. Throws 401 on wrong password.
+export async function deleteAccount(userId, password) {
+  await verifyPassword(userId, password);
+  await eraseUserData(userId);
+  await User.deleteOne({ _id: userId });
+  return { ok: true };
 }
 
 // Route guard: needs `Authorization: Bearer <token>`, sets req.userId.

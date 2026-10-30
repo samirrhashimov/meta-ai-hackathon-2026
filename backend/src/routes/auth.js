@@ -1,5 +1,11 @@
 import { Router } from "express";
-import { loginUser, publicUser, registerUser, requireAuth } from "../services/auth.js";
+import {
+  deleteAccount,
+  loginUser,
+  publicUser,
+  registerUser,
+  requireAuth,
+} from "../services/auth.js";
 import { User } from "../models/User.js";
 
 const router = Router();
@@ -27,6 +33,17 @@ router.post("/login", async (req, res, next) => {
 });
 
 // GET /api/auth/me — the logged-in account (needs the Bearer token)
+// DELETE /api/auth/account — { password } → wipes data + deletes the account
+router.delete("/account", requireAuth, async (req, res, next) => {
+  try {
+    const { password } = req.body || {};
+    res.json(await deleteAccount(req.userId, password));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await User.findById(req.userId);

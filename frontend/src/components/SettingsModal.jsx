@@ -6,6 +6,7 @@ import {
   LuEye,
   LuEyeOff,
   LuLoaderCircle,
+  LuLogOut,
   LuTrash2,
 } from "react-icons/lu";
 import { api } from "../api";
@@ -62,20 +63,100 @@ function Toggle({ label, hint, checked, onChange }) {
   );
 }
 
+// Destructive confirm: password + checkbox gate before the action runs.
+// onConfirm(password) returns a promise; failures stay in the modal.
+function DangerModal({ title, message, confirmLabel, inputCls, onClose, onConfirm }) {
+  const [password, setPassword] = useState("");
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  // Password managers love filling anything shaped like a password field.
+  // It stays read-only until focused, so autofill never drops a saved
+  // login password in here.
+  const [armed, setArmed] = useState(false);
+  const ready = password !== "" && checked && !busy;
+
+  async function confirm() {
+    if (!ready) return;
+    setError("");
+    setBusy(true);
+    try {
+      await onConfirm(password);
+    } catch (e) {
+      setError(e.message || "Failed");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      {(close) => (
+        <div className="glass w-full max-w-sm rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-neutral-100">{title}</h3>
+          <p className="mt-1 text-sm text-neutral-400">{message}</p>
+          <label className="mt-4 block">
+            <span className="mb-1 block text-xs font-medium text-neutral-300">Password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
+              name="flama-danger-password"
+              autoComplete="new-password"
+              spellCheck={false}
+              data-lpignore="true"
+              readOnly={!armed}
+              onFocus={() => setArmed(true)}
+              onBlur={() => setArmed(false)}
+              className={inputCls}
+            />
+          </label>
+          <label className="mt-3 flex cursor-pointer items-start gap-2 text-xs text-neutral-300">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => setChecked(e.target.checked)}
+              className="mt-0.5 accent-red-400"
+            />
+            I understand this cannot be undone
+          </label>
+          {error && <p className="mt-2 text-xs danger-text">{error}</p>}
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              onClick={close}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+            >
+              Keep <Kbd>Esc</Kbd>
+            </button>
+            <button
+              data-modal-primary
+              onClick={confirm}
+              disabled={!ready}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-400 px-3 py-1.5 text-sm font-medium text-[#2a0a0a] hover:bg-red-500 hover:text-white disabled:opacity-50"
+            >
+              {busy ? "Working…" : confirmLabel}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 // Settings: API connection, assistant defaults, automation, appearance,
 // chat, data, about. Stored locally (ui.settings) for now.
-export default function SettingsModal({ settings, onChange, onClose, notes, folders, files, onDataChanged }) {
+export default function SettingsModal({ settings, onChange, onClose, notes, folders, files, onDataChanged, onLogout, userEmail }) {
   const acc = currentAccent();
   const inputCls = `w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-600 ${acc.focusBorder} focus:outline-none`;
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null); // { ok, message }
   const [showKey, setShowKey] = useState(false);
+  const [danger, setDanger] = useState(null); // "wipe" | "account" | null
   // Password managers love filling anything shaped like a password field
   // (this input defaults to type="password"). It stays read-only until
   // focused, so autofill never drops a phantom key in here.
   const [keyArmed, setKeyArmed] = useState(false);
-  const [confirmWipe, setConfirmWipe] = useState(false);
-  const [working, setWorking] = useState(false);
+
   const [pickingColor, setPickingColor] = useState(false);
   const [customOpen, setCustomOpen] = useState(false); // custom card expanded
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -119,15 +200,16 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
     URL.revokeObjectURL(a.href);
   }
 
-  async function wipeAll() {
-    setWorking(true);
-    try {
-      await api.resetData();
-      setConfirmWipe(false);
-      onDataChanged?.();
-    } finally {
-      setWorking(false);
-    }
+  async function confirmWipe(password) {
+    await api.resetData(password);
+    setDanger(null);
+    onDataChanged?.();
+  }
+
+  async function confirmDeleteAccount(password) {
+    await api.deleteAccount(password);
+    setDanger(null);
+    onLogout?.();
   }
 
   return (
@@ -434,31 +516,14 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                   <LuDownload size={13} />
                   Export all (JSON)
                 </button>
-                {!confirmWipe ? (
-                  <button
-                    onClick={() => setConfirmWipe(true)}
-                    className="flex items-center gap-1.5 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-1.5 text-xs danger-text hover:bg-red-400/20"
-                  >
-                    <LuTrash2 size={13} />
-                    Delete everything
-                  </button>
-                ) : (
-                  <button
-                    onClick={wipeAll}
-                    disabled={working}
-                    className="flex items-center gap-1.5 rounded-lg bg-red-400 px-3 py-1.5 text-xs font-medium text-[#2a0a0a] hover:bg-red-500 hover:text-white disabled:opacity-50"
-                  >
-                    {working && <LuLoaderCircle size={13} className="animate-spin" />}
-                    Click again to confirm
-                  </button>
-                )}
+                <button
+                  onClick={() => setDanger("wipe")}
+                  className="flex items-center gap-1.5 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-1.5 text-xs danger-text hover:bg-red-400/20"
+                >
+                  <LuTrash2 size={13} />
+                  Delete everything
+                </button>
               </div>
-            </Section>
-
-            <Section title="About">
-              <p className="text-xs leading-relaxed text-neutral-500">
-                Flama · hackathon build · single-user demo.
-              </p>
             </Section>
 
             <Section
@@ -471,6 +536,34 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
                   <Kbd>{s.display}</Kbd>
                 </div>
               ))}
+            </Section>
+
+            <Section title="About">
+              <p className="text-xs leading-relaxed text-neutral-500">
+                Flama · hackathon build · single-user demo.
+              </p>
+            </Section>
+
+            <Section
+              title="Account"
+              desc={userEmail ? `Signed in as ${userEmail}.` : undefined}
+            >
+              <div className="flex gap-2">
+                <button
+                  onClick={onLogout}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-neutral-200 hover:bg-white/[0.08]"
+                >
+                  <LuLogOut size={13} />
+                  Log out
+                </button>
+                <button
+                  onClick={() => setDanger("account")}
+                  className="flex items-center gap-1.5 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-1.5 text-xs danger-text hover:bg-red-400/20"
+                >
+                  <LuTrash2 size={13} />
+                  Delete account
+                </button>
+              </div>
             </Section>
           </div>
 
@@ -513,6 +606,26 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
           set(patch);
           setCustomOpen(false);
         }}
+      />
+    )}
+    {danger === "wipe" && (
+      <DangerModal
+        title="Delete everything"
+        message="Every note, folder, file and chat in this account will be permanently deleted. Your account stays."
+        confirmLabel="Delete everything"
+        inputCls={inputCls}
+        onClose={() => setDanger(null)}
+        onConfirm={confirmWipe}
+      />
+    )}
+    {danger === "account" && (
+      <DangerModal
+        title="Delete account"
+        message="Your account and all of its notes, folders, files and chats will be permanently deleted."
+        confirmLabel="Delete account"
+        inputCls={inputCls}
+        onClose={() => setDanger(null)}
+        onConfirm={confirmDeleteAccount}
       />
     )}
     </>

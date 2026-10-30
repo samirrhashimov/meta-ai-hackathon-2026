@@ -17,7 +17,7 @@ import VisualiseView from "./components/VisualiseView";
 import GraphView from "./components/GraphView";
 import SettingsModal from "./components/SettingsModal";
 import { loadSettings, saveSettings } from "./settings";
-import { LuChartColumn, LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuLogOut, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuTrash2, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
+import { LuChartColumn, LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuTrash2, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
 import { applyAccentVars, currentAccent } from "./accent";
 import logo from "./assets/flama_icon.png";
@@ -117,7 +117,7 @@ export default function App() {
     document.documentElement.dataset.font = settings.editorFont || "m";
     document.documentElement.dataset.theme = settings.theme || "dark";
   }, [settings]);
-  const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 300);
+  const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem("ui.sidebarW")) || 340);
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem("ui.rightW")) || 360);
   const [leftOpen, setLeftOpen] = useState(() => localStorage.getItem("ui.leftOpen") !== "false");
   const [draggingPane, setDraggingPane] = useState(false); // suspends width transition mid-drag
@@ -1076,9 +1076,6 @@ export default function App() {
             {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}
           </NavButton>
         )}
-        <NavButton title={`Log out (${user.email})`} onClick={handleLogout}>
-          <LuLogOut size={17} />
-        </NavButton>
         <img
           src={logoSrc}
           alt="Lumia Notes"
@@ -1330,6 +1327,8 @@ export default function App() {
             setSettingsOpen(false);
             refresh();
           }}
+          onLogout={handleLogout}
+          userEmail={user.email}
         />
       )}
 

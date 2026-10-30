@@ -103,7 +103,10 @@ export const api = {
   chatModels: () => request("/api/ai/models"),
   testKey: () => request("/api/ai/test", { method: "POST" }),
   visualise: (refresh) => request(`/api/ai/visualise${refresh ? "?refresh=1" : ""}`),
-  resetData: () => request("/api/reset", { method: "DELETE" }),
+  resetData: (password) =>
+    request("/api/reset", { method: "DELETE", body: JSON.stringify({ password }) }),
+  deleteAccount: (password) =>
+    request("/api/auth/account", { method: "DELETE", body: JSON.stringify({ password }) }),
   revert: (messageId) =>
     request("/api/ai/revert", { method: "POST", body: JSON.stringify({ messageId }) }),
 
