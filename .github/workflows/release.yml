@@ -5,6 +5,8 @@ on:
       - "v*"
 jobs:
   build:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -50,6 +52,12 @@ jobs:
           fs.writeFileSync(cargoPath, lines.join('\n'));
           console.log('version set to ' + tag);
           "
+      - name: Check signing key presence
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then echo "SIGNING KEY MISSING"; else echo "SIGNING KEY PRESENT"; fi
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
       - name: Build and release
