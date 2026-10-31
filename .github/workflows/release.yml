@@ -1,0 +1,66 @@
+name: Release
+on:
+  push:
+    tags:
+      - "v*"
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: macos-latest
+          - os: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Sync version from tag
+        shell: bash
+        run: |
+          node -e "
+          const fs = require('fs');
+          const tag = (process.env.GITHUB_REF_NAME || '').replace(/^v/, '');
+          if (!tag) throw new Error('no tag ref');
+          const pkgPath = 'frontend/package.json';
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          pkg.version = tag;
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          const confPath = 'frontend/src-tauri/tauri.conf.json';
+          const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
+          conf.version = tag;
+          fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
+          const cargoPath = 'frontend/src-tauri/Cargo.toml';
+          const lines = fs.readFileSync(cargoPath, 'utf8').split('\n');
+          const idx = lines.findIndex((l) => /^version = \"/.test(l));
+          if (idx === -1) throw new Error('cargo version not found');
+          lines[idx] = 'version = \"' + tag + '\"';
+          fs.writeFileSync(cargoPath, lines.join('\n'));
+          console.log('version set to ' + tag);
+          "
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Lumia ${{ github.ref_name }}"
+          releaseBody: "Download the installer for your system below. The app updates itself afterwards."
+          releaseDraft: false
+          prerelease: false
+          projectPath: frontend

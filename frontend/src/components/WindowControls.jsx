@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LuCopy, LuMinus, LuSquare, LuX } from "react-icons/lu";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { startWindowDrag } from "../tauri";
 
 // Detects the Tauri window handle. Stays null in a plain browser,
@@ -13,7 +14,6 @@ function useTauriWindow() {
     let unlisten;
     (async () => {
       try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const w = getCurrentWindow();
         try {
           setMaxed(await w.isMaximized());

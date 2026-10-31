@@ -21,6 +21,8 @@ import { LuChartColumn, LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuP
 import Resizer from "./components/Resizer";
 import WindowControls from "./components/WindowControls";
 import { startWindowDrag } from "./tauri";
+import { UpdateDialogHost } from "./components/Updater";
+import { useUpdater } from "./useUpdater";
 import { applyAccentVars, currentAccent } from "./accent";
 import { brandLogo } from "./logo";
 
@@ -100,6 +102,7 @@ export default function App() {
   const [view, setView] = useState("notes"); // notes | dashboard | graph
   const [settings, setSettingsState] = useState(loadSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const updater = useUpdater();
   const acc = currentAccent();
 
   // Synchronous write: the live cache is fresh before the next render,
@@ -1334,14 +1337,17 @@ export default function App() {
           }}
           onLogout={handleLogout}
           userEmail={user.email}
+          updateNote={updater.note}
         />
       )}
+
+      <UpdateDialogHost state={updater} />
 
       {/* Delete-note confirm */}
       {deletingNote && (
         <Modal onClose={() => setDeletingNote(null)}>
           {(close) => (
-            <div className="glass w-full max-w-sm rounded-2xl p-5">
+            <div className="glass-modal w-full max-w-sm rounded-2xl p-5">
               <h3 className="text-sm font-semibold text-neutral-100">Delete note</h3>
               <p className="mt-1 text-sm text-neutral-400">
                 "{deletingNote.title}" will be permanently deleted. Are you sure?
@@ -1370,7 +1376,7 @@ export default function App() {
       {deletingFile && (
         <Modal onClose={() => setDeletingFile(null)}>
           {(close) => (
-            <div className="glass w-full max-w-sm rounded-2xl p-5">
+            <div className="glass-modal w-full max-w-sm rounded-2xl p-5">
               <h3 className="text-sm font-semibold text-neutral-100">Delete file</h3>
               <p className="mt-1 text-sm text-neutral-400">
                 "{deletingFile.name}" will be permanently deleted. Are you sure?
@@ -1399,7 +1405,7 @@ export default function App() {
       {deletingFolder && (
         <Modal onClose={() => setDeletingFolder(null)}>
           {(close) => (
-            <div className="glass w-full max-w-sm rounded-2xl p-5">
+            <div className="glass-modal w-full max-w-sm rounded-2xl p-5">
               <h3 className="text-sm font-semibold text-neutral-100">Delete folder</h3>
               <p className="mt-1 text-sm text-neutral-400">
                 "{deletingFolder.name}" will be deleted. Its contents are kept, they become
@@ -1429,7 +1435,7 @@ export default function App() {
       {bulkDeleting && (
         <Modal onClose={() => setBulkDeleting(null)}>
           {(close) => (
-            <div className="glass w-full max-w-sm rounded-2xl p-5">
+            <div className="glass-modal w-full max-w-sm rounded-2xl p-5">
               <h3 className="text-sm font-semibold text-neutral-100">
                 Delete {bulkDeleting.length} item{bulkDeleting.length === 1 ? "" : "s"}
               </h3>
@@ -1467,7 +1473,7 @@ export default function App() {
       {closingId && (
         <Modal onClose={() => setClosingId(null)}>
           {(close) => (
-            <div className="glass w-full max-w-sm rounded-2xl p-5">
+            <div className="glass-modal w-full max-w-sm rounded-2xl p-5">
               <h3 className="text-sm font-semibold text-neutral-100">Unsaved changes</h3>
               <p className="mt-1 text-sm text-neutral-400">
                 "{notes.find((n) => n._id === closingId)?.title ||
@@ -1505,7 +1511,7 @@ export default function App() {
             const n = notes.filter((x) => !x.folderId && !x.locked).length;
             const f = files.filter((x) => !x.folderId).length;
             return (
-              <div className="glass w-full max-w-sm rounded-2xl p-5">
+              <div className="glass-modal w-full max-w-sm rounded-2xl p-5">
                 <h3 className="text-sm font-semibold text-neutral-100">Auto Sort everything?</h3>
                 <p className="mt-1 text-sm text-neutral-400">
                   The AI will move {n} unsorted note{n === 1 ? "" : "s"} and {f} unsorted

@@ -15,6 +15,7 @@ import { THEMES, presetHex, themeOf } from "../themes";
 import { DEFAULT_SETTINGS } from "../settings";
 import { SHORTCUTS } from "../shortcuts";
 import Modal, { Kbd } from "./Modal";
+import { UpdateSettingsRow } from "./Updater";
 
 function Section({ title, desc, children }) {
   return (
@@ -91,7 +92,7 @@ function DangerModal({ title, message, confirmLabel, inputCls, onClose, onConfir
   return (
     <Modal onClose={onClose}>
       {(close) => (
-        <div className="glass w-full max-w-sm rounded-2xl p-5">
+        <div className="glass-modal w-full max-w-sm rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-neutral-100">{title}</h3>
           <p className="mt-1 text-sm text-neutral-400">{message}</p>
           <label className="mt-4 block">
@@ -145,7 +146,7 @@ function DangerModal({ title, message, confirmLabel, inputCls, onClose, onConfir
 
 // Settings: API connection, assistant defaults, automation, appearance,
 // chat, data, about. Stored locally (ui.settings) for now.
-export default function SettingsModal({ settings, onChange, onClose, notes, folders, files, onDataChanged, onLogout, userEmail }) {
+export default function SettingsModal({ settings, onChange, onClose, notes, folders, files, onDataChanged, onLogout, userEmail, updateNote }) {
   const acc = currentAccent();
   const inputCls = `w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-600 ${acc.focusBorder} focus:outline-none`;
   const [testing, setTesting] = useState(false);
@@ -216,7 +217,7 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
     <>
     <Modal onClose={onClose}>
       {(close) => (
-        <div className="glass w-full max-w-lg overflow-hidden rounded-2xl">
+        <div className="glass-modal w-full max-w-lg overflow-hidden rounded-2xl">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
             <h3 className="text-sm font-semibold text-neutral-100">Settings</h3>
             <Kbd>Esc</Kbd>
@@ -545,6 +546,13 @@ export default function SettingsModal({ settings, onChange, onClose, notes, fold
             </Section>
 
             <Section
+              title="Updates"
+              desc="The app checks on startup. Manual checks need internet."
+            >
+              <UpdateSettingsRow note={updateNote} />
+            </Section>
+
+            <Section
               title="Account"
               desc={userEmail ? `Signed in as ${userEmail}.` : undefined}
             >
@@ -644,7 +652,7 @@ function CustomThemeEditor({ initialTheme, initialAccent, onClose, onSave }) {
     <>
     <Modal onClose={onClose}>
       {(close) => (
-        <div className="glass w-full max-w-xs overflow-hidden rounded-2xl p-5">
+        <div className="glass-modal w-full max-w-xs overflow-hidden rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-neutral-100">Custom theme</h3>
           <p className="mt-1 text-sm text-neutral-400">
             Mix any mode with any color.
@@ -785,7 +793,7 @@ function ColorPickerModal({ initial, onSave, onClose }) {
   return (
     <Modal onClose={onClose}>
       {(close) => (
-        <div className="glass w-full max-w-xs overflow-hidden rounded-2xl p-5">
+        <div className="glass-modal w-full max-w-xs overflow-hidden rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-neutral-100">Custom accent</h3>
           <div
             ref={boxRef}

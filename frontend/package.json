@@ -14,6 +14,7 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-updater": "^2.14.1",
     "codemirror": "^5.65.21",
     "hypermd": "^0.3.11",
     "katex": "^0.19.1",
