@@ -9,6 +9,8 @@ import {
 } from "react-icons/lu";
 import { currentAccent } from "../accent";
 import { brandLogo } from "../logo";
+import { WindowBar } from "./WindowControls";
+import { startWindowDrag } from "../tauri";
 
 // One typing demo after another: title, tab, tag and toast always match.
 const MOCK_SCENARIOS = [
@@ -72,8 +74,9 @@ export default function Landing({ theme = "dark" }) {
     <div className="land-root">
       <div className="land-orb land-orb-a" />
       <div className="land-orb land-orb-b" />
+      <WindowBar />
 
-      <header className="land-nav land-rise">
+      <header data-tauri-drag-region onMouseDown={startWindowDrag} className="land-nav land-rise">
         <a href="#/" className="land-brand">
           <img src={logo} alt="Flama" />
         </a>

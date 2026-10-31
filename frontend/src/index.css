@@ -1928,6 +1928,14 @@ html[data-theme="light"] .land-mock-toast-pill {
 .land-back:hover {
   color: #fafafa;
 }
+.land-winbar {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  height: 2.75rem;
+  flex-shrink: 0;
+}
 .land-auth-wrap {
   position: relative;
   z-index: 1;

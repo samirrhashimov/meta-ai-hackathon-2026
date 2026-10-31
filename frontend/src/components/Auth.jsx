@@ -3,6 +3,7 @@ import { LuCheck, LuLock, LuMail, LuUser } from "react-icons/lu";
 import { api, setToken } from "../api";
 import { currentAccent } from "../accent";
 import { brandLogo } from "../logo";
+import { WindowBar } from "./WindowControls";
 
 // Auth page: split card with a live filing animation and the form.
 // onDone(user) hands the fresh session back to App.
@@ -57,6 +58,7 @@ export default function Auth({ mode = "login", onDone, onBack, theme = "dark" })
     <div className="land-root">
       <div className="land-orb land-orb-a" />
       <div className="land-orb land-orb-b" />
+      <WindowBar />
       <div className="land-auth-wrap">
         <div className="glass land-auth-card land-rise">
           <img src={logo} alt="Flama" className="land-auth-logo" />

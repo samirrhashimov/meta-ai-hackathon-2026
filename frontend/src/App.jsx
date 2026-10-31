@@ -19,6 +19,8 @@ import SettingsModal from "./components/SettingsModal";
 import { loadSettings, saveSettings } from "./settings";
 import { LuChartColumn, LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuPanelLeftClose, LuPanelLeftOpen, LuPanelRightClose, LuPanelRightOpen, LuSearch, LuSettings, LuTag, LuTrash2, LuUndo2, LuWaypoints, LuX } from "react-icons/lu";
 import Resizer from "./components/Resizer";
+import WindowControls from "./components/WindowControls";
+import { startWindowDrag } from "./tauri";
 import { applyAccentVars, currentAccent } from "./accent";
 import { brandLogo } from "./logo";
 
@@ -970,10 +972,19 @@ export default function App() {
       />
       {/* Top navbar: logo - homepage - search - settings - left toggle - tabs - right toggle */}
       <header
-        className="glass pane-top relative flex h-11 shrink-0 items-center gap-1 px-2"
+        data-tauri-drag-region
+        className="glass pane-top relative flex h-11 shrink-0 items-center gap-1 pr-0 pl-2"
+        onMouseDown={startWindowDrag}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleNavbarDrop}
       >
+        <img
+          src={logoSrc}
+          alt="Flama"
+          title="Flama"
+          className="ml-1 mr-2 h-5 w-auto shrink-0 select-none"
+          draggable={false}
+        />
         <NavButton
           title={shortcutTitle("Home", "home")}
           active={view === "notes" && !activeId}
@@ -1025,6 +1036,7 @@ export default function App() {
             return (
               <div
                 key={id}
+                data-no-drag
                 onClick={() => {
                   setActiveId(id);
                   setView("notes");
@@ -1075,13 +1087,7 @@ export default function App() {
             {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}
           </NavButton>
         )}
-        <img
-          src={logoSrc}
-          alt="Flama"
-          title="Flama"
-          className="ml-3 h-5 w-auto shrink-0 select-none"
-          draggable={false}
-        />
+        <WindowControls />
       </header>
 
       <div className="flex min-h-0 flex-1">
