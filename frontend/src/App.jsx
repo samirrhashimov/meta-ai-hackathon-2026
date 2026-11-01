@@ -21,7 +21,7 @@ import { LuChartColumn, LuFileText, LuFolderCheck, LuFolderSymlink, LuHouse, LuP
 import Resizer from "./components/Resizer";
 import WindowControls from "./components/WindowControls";
 import { startWindowDrag } from "./tauri";
-import { UpdateDialogHost } from "./components/Updater";
+import { UpdateDialogHost, UpdateNavButton } from "./components/Updater";
 import { useUpdater } from "./useUpdater";
 import { applyAccentVars, currentAccent } from "./accent";
 import { brandLogo } from "./logo";
@@ -1085,6 +1085,9 @@ export default function App() {
         </div>
         {/* The right panel only exists while a tab is open; the Assistant
             in the center makes it redundant, so the toggle hides too. */}
+        {updater.update && updater.dismissed && !updater.open && (
+          <UpdateNavButton busy={updater.busy} onUpdate={updater.install} />
+        )}
         {centerHasTab && (
           <NavButton title={shortcutTitle(rightOpen ? "Close right sidebar" : "Open right sidebar", "assistant")} onClick={() => setRightOpen((v) => !v)}>
             {rightOpen ? <LuPanelRightClose size={17} /> : <LuPanelRightOpen size={17} />}

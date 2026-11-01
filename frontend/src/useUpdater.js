@@ -12,6 +12,7 @@ export function useUpdater() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [dismissed, setDismissed] = useState(false);
   const running = useRef(false);
 
   const runCheck = useCallback(async ({ silent }) => {
@@ -22,6 +23,7 @@ export function useUpdater() {
     try {
       const found = await checkForUpdates();
       if (found) {
+        setDismissed(false);
         setUpdate(found);
         setProgress(0);
         setOpen(true);
@@ -63,15 +65,17 @@ export function useUpdater() {
     } catch (e) {
       setError(e?.message || "Update failed");
       setBusy(false);
+      setOpen(true);
     }
   }, [update, busy]);
 
   const close = useCallback(() => {
     if (busy) return;
+    setDismissed(true);
     setOpen(false);
     setError("");
     setProgress(0);
   }, [busy]);
 
-  return { update, open, busy, progress, error, note, install, close };
+  return { update, open, busy, progress, error, note, dismissed, install, close };
 }

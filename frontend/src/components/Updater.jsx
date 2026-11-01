@@ -1,4 +1,4 @@
-import { LuLoaderCircle, LuRefreshCw } from "react-icons/lu";
+import { LuDownload, LuLoaderCircle, LuRefreshCw } from "react-icons/lu";
 import Modal from "./Modal";
 
 export function UpdateDialogHost({ state }) {
@@ -54,6 +54,22 @@ export function UpdateDialogHost({ state }) {
         </div>
       )}
     </Modal>
+  );
+}
+
+
+// Navbar badge (Discord style): green while an update waits after the
+// dialog was dismissed. Clicking installs straight away.
+export function UpdateNavButton({ busy, onUpdate }) {
+  return (
+    <button
+      title="Download and install update"
+      onClick={onUpdate}
+      disabled={busy}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-green-400 transition-colors select-none hover:bg-green-400/10 disabled:opacity-70"
+    >
+      {busy ? <LuLoaderCircle size={16} className="animate-spin" /> : <LuDownload size={16} />}
+    </button>
   );
 }
 
