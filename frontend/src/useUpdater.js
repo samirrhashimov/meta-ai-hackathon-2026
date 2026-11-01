@@ -12,7 +12,13 @@ export function useUpdater() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedVersion, setDismissedVersion] = useState(() => {
+    try {
+      return localStorage.getItem("flama.update.dismissed") || null;
+    } catch {
+      return null;
+    }
+  });
   const running = useRef(false);
 
   const runCheck = useCallback(async ({ silent }) => {
@@ -23,10 +29,14 @@ export function useUpdater() {
     try {
       const found = await checkForUpdates();
       if (found) {
-        setDismissed(false);
         setUpdate(found);
         setProgress(0);
-        setOpen(true);
+        let dv = null;
+        try {
+          dv = localStorage.getItem("flama.update.dismissed");
+        } catch { /* storage unavailable: keep in-memory only */ }
+        setDismissedVersion(dv);
+        if (!silent || found.version !== dv) setOpen(true);
       } else if (!silent) {
         setNote("You're up to date.");
       }
@@ -70,12 +80,15 @@ export function useUpdater() {
   }, [update, busy]);
 
   const close = useCallback(() => {
-    if (busy) return;
-    setDismissed(true);
+    if (busy || !update) return;
+    try {
+      localStorage.setItem("flama.update.dismissed", update.version);
+    } catch { /* storage unavailable: keep in-memory only */ }
+    setDismissedVersion(update.version);
     setOpen(false);
     setError("");
     setProgress(0);
-  }, [busy]);
+  }, [busy, update]);
 
-  return { update, open, busy, progress, error, note, dismissed, install, close };
+  return { update, open, busy, progress, error, note, dismissedVersion, install, close };
 }

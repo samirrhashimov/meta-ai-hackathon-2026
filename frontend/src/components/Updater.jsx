@@ -85,7 +85,7 @@ export function UpdateSettingsRow({ note }) {
         <LuRefreshCw size={13} />
         Check for updates
       </button>
-      <p className="mt-1.5 text-xs text-neutral-500">Version {appVersion}</p>
+      <p className="mt-1.5 text-xs text-neutral-500">v{appVersion}</p>
       {note && (
         <p className="update-note-in mt-1 flex items-center gap-1 text-xs font-medium text-green-400">
           <LuCheck size={13} />

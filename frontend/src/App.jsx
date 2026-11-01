@@ -1085,7 +1085,7 @@ export default function App() {
         </div>
         {/* The right panel only exists while a tab is open; the Assistant
             in the center makes it redundant, so the toggle hides too. */}
-        {updater.update && updater.dismissed && !updater.open && (
+        {updater.update && !updater.open && updater.dismissedVersion === updater.update.version && (
           <UpdateNavButton busy={updater.busy} onUpdate={updater.install} />
         )}
         {centerHasTab && (
