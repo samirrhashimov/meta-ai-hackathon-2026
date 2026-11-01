@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Lumia",
+  "productName": "Flama",
   "version": "0.1.0",
-  "identifier": "com.lumia.app",
+  "identifier": "com.flama.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Lumia",
+        "title": "Flama",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

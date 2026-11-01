@@ -67,7 +67,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Lumia ${{ github.ref_name }}"
+          releaseName: "Flama ${{ github.ref_name }}"
           releaseBody: "Download the installer for your system below. The app updates itself afterwards."
           releaseDraft: false
           prerelease: false
