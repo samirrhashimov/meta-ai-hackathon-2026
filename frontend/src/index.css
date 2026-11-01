@@ -132,6 +132,25 @@ body {
   -webkit-backdrop-filter: blur(22px) saturate(150%);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
 }
+/* Update status note: pops in green on every manual check. */
+.update-note-in {
+  animation: updateNoteIn 0.35s ease-out;
+}
+@keyframes updateNoteIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .update-note-in {
+    animation: none;
+  }
+}
 html[data-theme="light"] .glass-modal {
   background:
     linear-gradient(165deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.25)),

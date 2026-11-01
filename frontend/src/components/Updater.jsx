@@ -1,4 +1,5 @@
-import { LuDownload, LuLoaderCircle, LuRefreshCw } from "react-icons/lu";
+import { LuCheck, LuDownload, LuLoaderCircle, LuRefreshCw } from "react-icons/lu";
+import { version as appVersion } from "../../package.json";
 import Modal from "./Modal";
 
 export function UpdateDialogHost({ state }) {
@@ -84,7 +85,13 @@ export function UpdateSettingsRow({ note }) {
         <LuRefreshCw size={13} />
         Check for updates
       </button>
-      {note && <p className="mt-1.5 text-xs text-neutral-500">{note}</p>}
+      <p className="mt-1.5 text-xs text-neutral-500">Version {appVersion}</p>
+      {note && (
+        <p className="update-note-in mt-1 flex items-center gap-1 text-xs font-medium text-green-400">
+          <LuCheck size={13} />
+          {note}
+        </p>
+      )}
     </div>
   );
 }
