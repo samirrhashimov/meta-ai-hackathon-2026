@@ -3,6 +3,9 @@ import { aiHeaders } from "./settings";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+// Base URL for flows that leave the SPA (Google sign in return urls).
+export const apiBaseUrl = () => API_BASE;
+
 const TOKEN_KEY = "flama.token";
 
 export function getToken() {

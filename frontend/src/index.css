@@ -2102,6 +2102,46 @@ html[data-theme="light"] .land-mock-toast-pill {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.land-auth-div {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 1.1rem 0 0.9rem;
+  font-size: 0.78rem;
+  color: #a1a1aa;
+}
+.land-auth-div::before,
+.land-auth-div::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.land-auth-google {
+  justify-content: center;
+  width: 100%;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e4e4e7;
+}
+.land-auth-google:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+html[data-theme="light"] .land-auth-div {
+  color: #71717a;
+}
+html[data-theme="light"] .land-auth-div::before,
+html[data-theme="light"] .land-auth-div::after {
+  background: rgba(0, 0, 0, 0.1);
+}
+html[data-theme="light"] .land-auth-google {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.6);
+  color: #27272a;
+}
+html[data-theme="light"] .land-auth-google:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
 .land-auth-switch {
   margin-top: 1.2rem;
   font-size: 0.85rem;

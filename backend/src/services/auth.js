@@ -77,6 +77,12 @@ export async function registerUser(email, password, name = "") {
 export async function loginUser(email, password) {
   const clean = String(email || "").trim().toLowerCase();
   const user = await User.findOne({ email: clean });
+  if (user && !user.passwordHash) {
+    // Account created through Google sign in: there is no password to check.
+    const err = new Error("This account uses Google sign in");
+    err.status = 401;
+    throw err;
+  }
   if (!user || !(await checkPassword(String(password || ""), user.passwordHash))) {
     const err = new Error("Wrong email or password");
     err.status = 401;

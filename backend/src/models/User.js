@@ -13,7 +13,9 @@ const userSchema = new Schema(
       match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Email is not valid"],
     },
     name: { type: String, default: "", trim: true },
-    passwordHash: { type: String, required: true },
+    passwordHash: { type: String, default: "" },
+    // Set for accounts created or linked through Google sign in.
+    googleId: { type: String, unique: true, sparse: true },
   },
   { timestamps: true }
 );

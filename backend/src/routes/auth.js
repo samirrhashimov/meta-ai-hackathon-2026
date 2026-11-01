@@ -7,6 +7,12 @@ import {
   requireAuth,
 } from "../services/auth.js";
 import { User } from "../models/User.js";
+import {
+  googleAuthUrl,
+  googleCallback,
+  googleDest,
+  peekGoogleMode,
+} from "../services/google.js";
 
 const router = Router();
 
@@ -41,6 +47,32 @@ router.delete("/account", requireAuth, async (req, res, next) => {
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
+  }
+});
+
+// GET /api/auth/google?mode=web|app -> 302 to the Google consent screen.
+// mode=web returns to the site, mode=app returns to the flama:// deep link.
+router.get("/google", (req, res, next) => {
+  try {
+    res.redirect(googleAuthUrl(req.query.mode === "app" ? "app" : "web"));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// GET /api/auth/google/callback?code&state -> 302 with ?token= or ?error=.
+router.get("/google/callback", async (req, res, next) => {
+  try {
+    const { token, mode } = await googleCallback(req.query.code, req.query.state);
+    res.redirect(googleDest(mode, token, ""));
+  } catch (err) {
+    const mode = err.mode || peekGoogleMode(req.query.state);
+    try {
+      res.redirect(googleDest(mode, "", err.message || "Google login failed"));
+    } catch {
+      next(err);
+    }
   }
 });
 

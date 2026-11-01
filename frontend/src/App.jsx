@@ -72,6 +72,75 @@ export default function App() {
     window.addEventListener("flama:logout", onExpired);
     return () => window.removeEventListener("flama:logout", onExpired);
   }, []);
+  // Google sign in return: #/auth/callback?token= on web,
+  // flama://auth/callback?token= through the deep link on desktop.
+  useEffect(() => {
+    async function completeExternalLogin(token) {
+      try {
+        setToken(token);
+        const res = await api.me();
+        setUser(res.user);
+        window.location.hash = "#/";
+      } catch {
+        setToken("");
+        try {
+          sessionStorage.setItem("flama.auth.error", "Google login failed, please try again");
+        } catch {
+          // storage unavailable: login page shows its default state
+        }
+        window.location.hash = "#/login";
+      }
+    }
+    function handleCallbackUrl(raw) {
+      let token = "";
+      let error = "";
+      try {
+        const p = new URLSearchParams((raw || "").split("?")[1] || "");
+        token = p.get("token") || "";
+        error = p.get("error") || "";
+      } catch {
+        // unparsable url: fall through to the login page below
+      }
+      if (token) completeExternalLogin(token);
+      else {
+        try {
+          if (error) sessionStorage.setItem("flama.auth.error", error);
+        } catch {
+          // storage unavailable: login page shows its default state
+        }
+        window.location.hash = "#/login";
+      }
+    }
+    // Web flow lands here with a full page load.
+    if ((window.location.hash || "").startsWith("#/auth/callback")) {
+      handleCallbackUrl(window.location.hash.slice(1));
+    }
+    // Desktop flow arrives as a flama:// deep link while the app runs.
+    let unlisten = null;
+    if (window.__TAURI_INTERNALS__) {
+      import("@tauri-apps/plugin-deep-link")
+        .then(async (dl) => {
+          try {
+            await dl.register("flama");
+          } catch {
+            // scheme already registered from a previous launch
+          }
+          try {
+            if (typeof dl.getCurrent === "function") {
+              const pending = (await dl.getCurrent()) || [];
+              pending.forEach(handleCallbackUrl);
+            }
+          } catch {
+            // no pending launch url
+          }
+          unlisten = await dl.onOpenUrl((urls) => (urls || []).forEach(handleCallbackUrl));
+        })
+        .catch(() => {});
+    }
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
   function handleAuthed(u) {
     setUser(u);
     window.location.hash = "#/";
@@ -943,6 +1012,12 @@ export default function App() {
   }
 
   if (!user) {
+    if (route.startsWith("#/auth/callback"))
+      return (
+        <div className="land-root">
+          <p className="land-auth-switch">Signing you in...</p>
+        </div>
+      );
     if (route.startsWith("#/login"))
       return <Auth mode="login" onDone={handleAuthed} onBack={() => (window.location.hash = "#/")} theme={settings.theme} />;
     if (route.startsWith("#/register"))
