@@ -1,0 +1,20 @@
+[Unit]
+Description=Flama backend (Node + Express, serves api + frontend)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+# Run as your own server user, never as root. Replace YOUR_USER below.
+User=YOUR_USER
+WorkingDirectory=/opt/flama/backend
+# Production values live here, not in the repo:
+# PORT, MONGODB_URI, JWT_SECRET, META_*, SERVE_STATIC=true,
+# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL, FRONTEND_URL
+EnvironmentFile=/opt/flama/backend/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

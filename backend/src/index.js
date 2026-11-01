@@ -30,6 +30,18 @@ app.use("/api/reset", resetRouter);
 // Uploaded files: GET /uploads/<file>
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
+// Production: serve the built frontend (repo/frontend/dist) from the same
+// origin, so one subdomain covers both app and api. Hash routes (#/...)
+// are handled client side, so only static files plus index.html are served.
+if (process.env.SERVE_STATIC === "true") {
+  const dist = path.join(process.cwd(), "..", "frontend", "dist");
+  app.use(express.static(dist));
+  app.get(/^(?!\/api\/).*/, (req, res, next) => {
+    if (req.path.startsWith("/uploads/")) return next();
+    res.sendFile(path.join(dist, "index.html"));
+  });
+}
+
 // Unknown route -> 404
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
@@ -60,7 +72,9 @@ try {
     process.exit(1);
   }
   await connectDB(process.env.MONGODB_URI);
-  app.listen(PORT, () => console.log(`Backend running: http://localhost:${PORT}`));
+  // Loopback only: Nginx Proxy Manager talks to this port, the outside
+  // world never connects here directly.
+  app.listen(PORT, "127.0.0.1", () => console.log(`Backend running: http://localhost:${PORT}`));
 } catch (err) {
   console.error("ERROR: Could not connect to MongoDB:", err.message);
   process.exit(1);
