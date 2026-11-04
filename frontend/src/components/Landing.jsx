@@ -243,14 +243,14 @@ export default function Landing({ theme = "dark" }) {
         {/* Promo video slot */}
         <section id="video" className="land-section">
           <h2 className="land-h2">See what Flama does</h2>
-          {/* VIDEO SLOT: replace this div with the <video> or embed element.
-              Recommended: 16:9, 1080p, muted autoplay loop. */}
-          <div className="land-video-slot" role="img" aria-label="Promo video placeholder">
-            <span className="land-video-play">
-              <LuPlay size={26} />
-            </span>
-            <p>Drop the promo video here</p>
-            <small>16:9 · replace this block with the final cut</small>
+          <div className="land-video-slot land-video-live">
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/26VeVRDTcAM?rel=0"
+              title="Flama tour"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
           </div>
         </section>
 
