@@ -92,7 +92,7 @@ export default function Auth({ mode = "login", onDone, onBack, theme = "dark" })
     <div className="land-root">
       <div className="land-orb land-orb-a" />
       <div className="land-orb land-orb-b" />
-      <WindowBar />
+      <WindowBar backTo="#/" />
       <div className="land-auth-wrap">
         <div className="glass land-auth-card land-rise">
           <img src={logo} alt="Flama" className="land-auth-logo" />

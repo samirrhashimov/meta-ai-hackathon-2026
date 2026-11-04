@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LuCopy, LuMinus, LuSquare, LuX } from "react-icons/lu";
+import { LuArrowLeft, LuCopy, LuMinus, LuSquare, LuX } from "react-icons/lu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { startWindowDrag } from "../tauri";
 
@@ -65,24 +65,39 @@ function Controls({ win, maxed, setMaxed }) {
       <button
         title="Minimize"
         onClick={() => act(() => win.minimize())}
-        className="flex w-11 items-center justify-center text-neutral-300 transition-colors select-none hover:bg-white/10"
+        className="win-btn flex w-11 items-center justify-center text-neutral-300 transition-colors select-none hover:bg-white/10"
       >
         <LuMinus size={15} />
       </button>
       <button
         title={maxed ? "Restore" : "Maximize"}
         onClick={() => act(() => win.toggleMaximize())}
-        className="flex w-11 items-center justify-center text-neutral-300 transition-colors select-none hover:bg-white/10"
+        className="win-btn flex w-11 items-center justify-center text-neutral-300 transition-colors select-none hover:bg-white/10"
       >
         {maxed ? <LuCopy size={13} /> : <LuSquare size={13} />}
       </button>
       <button
         title="Close"
         onClick={() => act(() => win.close())}
-        className="flex w-11 items-center justify-center text-neutral-300 transition-colors select-none hover:bg-red-500 hover:text-white"
+        className="win-btn win-btn-close flex w-11 items-center justify-center text-neutral-300 transition-colors select-none hover:bg-red-500 hover:text-white"
       >
         <LuX size={16} />
       </button>
+    </>
+  );
+}
+
+// Window buttons for the landing nav row, after Get started.
+// Null in a plain browser, so the divider never renders on web.
+export function NavWindowControls() {
+  const { win, maxed, setMaxed } = useTauriWindow();
+  if (!win) return null;
+  return (
+    <>
+      <span className="land-nav-div" aria-hidden="true" />
+      <div className="land-nav-win">
+        <Controls win={win} maxed={maxed} setMaxed={setMaxed} />
+      </div>
     </>
   );
 }
@@ -100,13 +115,19 @@ export default function WindowControls() {
 }
 
 // Slim draggable system strip for the landing / auth pages,
-// which live outside the app header. Null in a plain browser.
-export function WindowBar() {
+// which live outside the app header. With backTo it also renders
+// in a plain browser as a back strip with no window controls.
+export function WindowBar({ backTo } = {}) {
   const { win, maxed, setMaxed } = useTauriWindow();
-  if (!win) return null;
+  if (!win && !backTo) return null;
   return (
     <div data-tauri-drag-region onMouseDown={startWindowDrag} className="land-winbar">
-      <Controls win={win} maxed={maxed} setMaxed={setMaxed} />
+      {backTo ? (
+        <a href={backTo} title="Back" aria-label="Back" className="land-winbar-back">
+          <LuArrowLeft size={16} />
+        </a>
+      ) : null}
+      {win ? <Controls win={win} maxed={maxed} setMaxed={setMaxed} /> : null}
     </div>
   );
 }

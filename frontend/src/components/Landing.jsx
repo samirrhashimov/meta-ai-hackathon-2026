@@ -9,7 +9,7 @@ import {
 } from "react-icons/lu";
 import { currentAccent } from "../accent";
 import { brandLogo } from "../logo";
-import { WindowBar } from "./WindowControls";
+import { NavWindowControls } from "./WindowControls";
 import { startWindowDrag } from "../tauri";
 
 // One typing demo after another: title, tab, tag and toast always match.
@@ -74,18 +74,18 @@ export default function Landing({ theme = "dark" }) {
     <div className="land-root">
       <div className="land-orb land-orb-a" />
       <div className="land-orb land-orb-b" />
-      <WindowBar />
-
       <header data-tauri-drag-region onMouseDown={startWindowDrag} className="land-nav land-rise">
+        <div className="land-nav-inner">
         <a href="#/" className="land-brand">
           <img src={logo} alt="Flama" />
         </a>
-        <nav className="land-links">
-          <a href="#features">Features</a>
-          <a href="#showcase">Showcase</a>
-          <a href="#video">Video</a>
-        </nav>
         <div className="land-nav-actions">
+          <nav className="land-links land-links-inline">
+            <a href="#features">Features</a>
+            <a href="#showcase">Showcase</a>
+            <a href="#video">Video</a>
+          </nav>
+          <span className="land-nav-div" aria-hidden="true" />
           <a href="#/login" className="land-btn land-btn-ghost">
             Log in
           </a>
@@ -94,6 +94,8 @@ export default function Landing({ theme = "dark" }) {
             <LuArrowRight size={15} />
           </a>
         </div>
+        </div>
+        <NavWindowControls />
       </header>
 
       <main>

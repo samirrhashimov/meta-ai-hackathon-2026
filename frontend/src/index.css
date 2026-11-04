@@ -979,14 +979,50 @@ html[data-theme="light"] .vis-shimmer {
   animation-delay: var(--land-d, 0ms);
 }
 .land-nav {
-  position: relative;
-  z-index: 1;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  align-items: stretch;
+}
+.land-nav-win {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+.land-nav > .land-nav-div {
+  align-self: center;
+}
+html[data-theme="light"] .win-btn {
+  color: #52525b;
+}
+html[data-theme="light"] .win-btn:hover {
+  background: rgba(9, 9, 11, 0.06);
+  color: #09090b;
+}
+html[data-theme="light"] .win-btn-close:hover {
+  background: #ef4444;
+  color: #fff;
+}
+.land-nav-inner {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex: 1;
   max-width: 72rem;
   margin: 0 auto;
-  padding: 1.1rem 1.5rem;
+  min-height: 2.75rem;
+  padding: 0.35rem 1.5rem;
+  box-sizing: border-box;
+}
+/* Same slim bar as the auth pages: buttons fit the 2.75rem strip. */
+.land-nav-actions .land-btn {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8125rem;
 }
 .land-brand img {
   height: 1.6rem;
@@ -1008,6 +1044,37 @@ html[data-theme="light"] .vis-shimmer {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+.land-links-inline {
+  margin-left: 0;
+}
+.land-nav-div {
+  width: 1px;
+  height: 1.25rem;
+  background: rgba(255, 255, 255, 0.12);
+}
+html[data-theme="light"] .land-nav-div {
+  background: rgba(9, 9, 11, 0.12);
+}
+.land-winbar-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-right: auto;
+  color: #a1a1aa;
+}
+.land-winbar-back:hover {
+  color: #fafafa;
+  background: rgba(255, 255, 255, 0.08);
+}
+html[data-theme="light"] .land-winbar-back {
+  color: #52525b;
+}
+html[data-theme="light"] .land-winbar-back:hover {
+  color: #09090b;
+  background: rgba(9, 9, 11, 0.06);
 }
 .land-btn {
   display: inline-flex;
@@ -1982,12 +2049,25 @@ html[data-theme="light"] .land-video-slot.land-video-live {
   color: #fafafa;
 }
 .land-winbar {
-  position: relative;
-  z-index: 5;
+  position: sticky;
+  top: 0;
+  z-index: 60;
   display: flex;
   justify-content: flex-end;
   height: 2.75rem;
   flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+html[data-theme="light"] .land-winbar {
+  background: rgba(255, 255, 255, 0.52);
+  border-bottom: 1px solid rgba(9, 9, 11, 0.08);
+}
+html[data-theme="light"] .land-nav {
+  background: rgba(255, 255, 255, 0.52);
+  border-bottom-color: rgba(9, 9, 11, 0.08);
 }
 .land-auth-wrap {
   position: relative;
