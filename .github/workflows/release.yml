@@ -65,6 +65,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Flama ${{ github.ref_name }}"
