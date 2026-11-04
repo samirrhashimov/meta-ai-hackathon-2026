@@ -982,10 +982,7 @@ html[data-theme="light"] .vis-shimmer {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  background: transparent;
   display: flex;
   align-items: stretch;
 }
@@ -2056,18 +2053,7 @@ html[data-theme="light"] .land-video-slot.land-video-live {
   justify-content: flex-end;
   height: 2.75rem;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
-}
-html[data-theme="light"] .land-winbar {
-  background: rgba(255, 255, 255, 0.52);
-  border-bottom: 1px solid rgba(9, 9, 11, 0.08);
-}
-html[data-theme="light"] .land-nav {
-  background: rgba(255, 255, 255, 0.52);
-  border-bottom-color: rgba(9, 9, 11, 0.08);
+  background: transparent;
 }
 .land-auth-wrap {
   position: relative;
