@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { isTauri } from "@tauri-apps/api/core";
 import { api, fileContentUrl, getToken, setToken } from "./api";
 import Landing from "./components/Landing";
 import Auth from "./components/Auth";
@@ -117,7 +118,7 @@ export default function App() {
     }
     // Desktop flow arrives as a flama:// deep link while the app runs.
     let unlisten = null;
-    if (window.__TAURI_INTERNALS__) {
+    if (isTauri()) {
       import("@tauri-apps/plugin-deep-link")
         .then(async (dl) => {
           try {

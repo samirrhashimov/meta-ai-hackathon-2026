@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LuCheck, LuLock, LuMail, LuUser } from "react-icons/lu";
+import { isTauri } from "@tauri-apps/api/core";
 import { api, apiBaseUrl, setToken } from "../api";
 import { currentAccent } from "../accent";
 import { brandLogo } from "../logo";
@@ -47,10 +48,8 @@ export default function Auth({ mode = "login", onDone, onBack, theme = "dark" })
   // system browser and returns through the flama:// deep link.
   async function googleLogin() {
     setError("");
-    const dest = `${apiBaseUrl()}/api/auth/google?mode=${
-      typeof window !== "undefined" && window.__TAURI_INTERNALS__ ? "app" : "web"
-    }`;
-    if (typeof window !== "undefined" && window.__TAURI_INTERNALS__) {
+    const dest = `${apiBaseUrl()}/api/auth/google?mode=${isTauri() ? "app" : "web"}`;
+    if (isTauri()) {
       try {
         const { openUrl } = await import("@tauri-apps/plugin-opener");
         await openUrl(dest);
