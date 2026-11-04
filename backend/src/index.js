@@ -72,9 +72,10 @@ try {
     process.exit(1);
   }
   await connectDB(process.env.MONGODB_URI);
-  // Loopback only: Nginx Proxy Manager talks to this port, the outside
-  // world never connects here directly.
-  app.listen(PORT, "127.0.0.1", () => console.log(`Backend running: http://localhost:${PORT}`));
+  // HOST defaults to loopback (Nginx Proxy Manager path). Direct port
+  // access (http://IP:3005) needs HOST=0.0.0.0 in backend/.env.
+  const HOST = process.env.HOST || "127.0.0.1";
+  app.listen(PORT, HOST, () => console.log(`Backend running: http://${HOST}:${PORT}`));
 } catch (err) {
   console.error("ERROR: Could not connect to MongoDB:", err.message);
   process.exit(1);
