@@ -26,6 +26,15 @@ If the backend lives elsewhere, create a `.env` file:
 VITE_API_URL=http://localhost:5000
 ```
 
+The app shows a warning when the backend may be unavailable. To enable it, add this to the
+same `.env` file:
+
+```
+VITE_SHOWWARNING=true
+```
+
+Set `VITE_SHOWWARNING=false` to disable the warning.
+
 ## Structure
 
 - `src/api.js` — all backend calls in one place

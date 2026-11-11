@@ -26,6 +26,7 @@ import { UpdateDialogHost, UpdateNavButton } from "./components/Updater";
 import { useUpdater } from "./useUpdater";
 import { applyAccentVars, currentAccent } from "./accent";
 import { brandLogo } from "./logo";
+import ServiceWarningModal from "./components/ServiceWarningModal";
 
 function NavButton({ title, active, onClick, children, dim, buttonRef }) {
   const acc = currentAccent();
@@ -1421,6 +1422,8 @@ export default function App() {
       )}
 
       <UpdateDialogHost state={updater} />
+
+      <ServiceWarningModal />
 
       {/* Delete-note confirm */}
       {deletingNote && (

@@ -11,6 +11,7 @@ import { currentAccent } from "../accent";
 import { brandLogo } from "../logo";
 import { NavWindowControls } from "./WindowControls";
 import { startWindowDrag } from "../tauri";
+import ServiceWarningModal from "./ServiceWarningModal";
 
 // One typing demo after another: title, tab, tag and toast always match.
 const MOCK_SCENARIOS = [
@@ -71,7 +72,8 @@ export default function Landing({ theme = "dark" }) {
   }
   const acc = currentAccent();
   return (
-    <div className="land-root">
+    <>
+      <div className="land-root">
       <div className="land-orb land-orb-a" />
       <div className="land-orb land-orb-b" />
       <header data-tauri-drag-region onMouseDown={startWindowDrag} className="land-nav land-rise">
@@ -274,7 +276,9 @@ export default function Landing({ theme = "dark" }) {
         <span className="land-footer-dim">Hackathon build · your notes and files stay yours</span>
       </footer>
 
-    </div>
+      </div>
+      <ServiceWarningModal />
+    </>
   );
 }
 
