@@ -27,7 +27,7 @@
 
 ### 📸 Hackathon Journey
 
-<video src="https://github.com/user-attachments/assets/80c12da2-0806-4991-b3e1-0438ba21a0be" autoplay loop muted playsinline width="100%"></video>
+<img width="800" height="450" alt="metahackathon" src="https://github.com/user-attachments/assets/72d91bc3-6aae-4e8e-a82a-b6c8c977d6e0" />
 
 ---
 
