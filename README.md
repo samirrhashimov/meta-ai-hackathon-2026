@@ -29,6 +29,8 @@
 
 <img width="800" height="450" alt="metahackathon" src="https://github.com/user-attachments/assets/72d91bc3-6aae-4e8e-a82a-b6c8c977d6e0" />
 
+![Flama Hackathon Journey](https://github.com/user-attachments/assets/72d91bc3-6aae-4e8e-a82a-b6c8c977d6e0)
+
 ---
 
 ## ✨ Key Features
