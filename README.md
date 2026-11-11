@@ -20,7 +20,7 @@
 ---
 
 ### 🎬 Official Trailer
-[![Flama Official Trailer](https://img.youtube.com/vi/26VeVRDTcAM/maxresdefault.jpg)](https://www.youtube.com/watch?v=26VeVRDTcAM)
+[![Flama Official Trailer](https://img.youtube.com/vi/26VeVRDTcAM/maxresdefault.jpg)](https://www.youtube.com/watch?v=26VeVRDTcAM "Watch Flama Trailer on YouTube")
 
 <br />
 
